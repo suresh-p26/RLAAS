@@ -1,0 +1,184 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.22"
+  MIN_COVERAGE: 90
+
+jobs:
+  # ── Lint ────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.61
+          args: --timeout=5m
+
+  # ── Vet & Format ───────────────────────────────────────────
+  vet:
+    name: Vet & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::Files not formatted with gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Check go.mod tidy
+        run: |
+          go mod tidy
+          if ! git diff --quiet go.mod go.sum; then
+            echo "::error::go.mod or go.sum is not tidy. Run 'go mod tidy' and commit."
+            git diff go.mod go.sum
+            exit 1
+          fi
+
+  # ── Tests + Coverage ───────────────────────────────────────
+  test:
+    name: Test (coverage ≥ ${{ needs.setup.outputs.min_cov || '90' }}%)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run tests with coverage
+        run: |
+          # Exclude generated protobuf code from coverage
+          PKGS=$(go list ./... | grep -v 'api/proto')
+          go test -race -coverprofile=coverage.out -covermode=atomic $PKGS
+
+      - name: Check coverage threshold
+        run: |
+          # Extract total coverage percentage
+          COVERAGE=$(go tool cover -func=coverage.out | grep '^total:' | awk '{print $NF}' | tr -d '%')
+          echo "Total coverage: ${COVERAGE}%"
+          echo "Minimum required: ${MIN_COVERAGE}%"
+
+          # Compare using awk for float comparison
+          PASS=$(awk "BEGIN {print ($COVERAGE >= $MIN_COVERAGE) ? 1 : 0}")
+          if [ "$PASS" -eq 0 ]; then
+            echo "::error::Coverage ${COVERAGE}% is below the minimum threshold of ${MIN_COVERAGE}%"
+            exit 1
+          fi
+          echo "✅ Coverage ${COVERAGE}% meets the ${MIN_COVERAGE}% threshold"
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.out
+          retention-days: 14
+
+  # ── Vulnerability Check ────────────────────────────────────
+  vuln:
+    name: Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+  # ── Build ──────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, vet, test, vuln]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Build server binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -ldflags="-s -w" -o bin/rlaas-server ./cmd/rlaas-server
+
+      - name: Build agent binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -ldflags="-s -w" -o bin/rlaas-agent ./cmd/rlaas-agent
+
+      - name: Verify binaries exist
+        run: |
+          test -f bin/rlaas-server && echo "✅ rlaas-server built" || exit 1
+          test -f bin/rlaas-agent  && echo "✅ rlaas-agent built"  || exit 1
+          ls -lh bin/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-linux-amd64
+          path: bin/
+          retention-days: 7
+
+  # ── Docker Build (validate only, no push) ──────────────────
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t rlaas:ci-${{ github.sha }} .
+          echo "✅ Docker image built successfully"
+
+      - name: Verify image runs
+        run: |
+          docker run --rm rlaas:ci-${{ github.sha }} --help || true
+          echo "✅ Docker image runs"

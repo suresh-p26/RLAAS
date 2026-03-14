@@ -1,0 +1,335 @@
+{
+  "policies": [
+    {
+      "policy_id": "fid-payments-logs",
+      "name": "Payments service log rate limit",
+      "description": "Token bucket: 10K logs/min with burst of 2K for the payments service",
+      "enabled": true,
+      "priority": 100,
+      "scope": {
+        "org_id": "fidelity",
+        "service": "payments",
+        "signal_type": "log"
+      },
+      "algorithm": {
+        "type": "token_bucket",
+        "limit": 10000,
+        "window": "1m",
+        "burst": 2000,
+        "refill_rate": 166.67
+      },
+      "action": "drop",
+      "failure_mode": "fail_open",
+      "enforcement_mode": "enforce",
+      "rollout_percent": 100,
+      "valid_from_unix": 0,
+      "valid_to_unix": 0,
+      "metadata": {
+        "team": "payments-platform",
+        "cost_center": "CC-PAY-001"
+      }
+    },
+    {
+      "policy_id": "fid-payments-error-logs",
+      "name": "Payments ERROR logs — higher limit",
+      "description": "Error logs get higher limits to avoid losing critical signals",
+      "enabled": true,
+      "priority": 200,
+      "scope": {
+        "org_id": "fidelity",
+        "service": "payments",
+        "signal_type": "log",
+        "severity": "ERROR"
+      },
+      "algorithm": {
+        "type": "token_bucket",
+        "limit": 50000,
+        "window": "1m",
+        "burst": 10000,
+        "refill_rate": 833.33
+      },
+      "action": "allow",
+      "failure_mode": "fail_open",
+      "enforcement_mode": "enforce",
+      "rollout_percent": 100,
+      "valid_from_unix": 0,
+      "valid_to_unix": 0,
+      "metadata": {
+        "team": "payments-platform",
+        "rationale": "Never drop error logs — higher limit protects observability"
+      }
+    },
+    {
+      "policy_id": "fid-auth-logs",
+      "name": "Auth service log rate limit",
+      "description": "Sliding window: 5K logs/min for auth service",
+      "enabled": true,
+      "priority": 100,
+      "scope": {
+        "org_id": "fidelity",
+        "service": "auth",
+        "signal_type": "log"
+      },
+      "algorithm": {
+        "type": "sliding_window_counter",
+        "limit": 5000,
+        "window": "1m",
+        "sub_window_count": 6
+      },
+      "action": "drop",
+      "failure_mode": "fail_open",
+      "enforcement_mode": "enforce",
+      "rollout_percent": 100,
+      "valid_from_unix": 0,
+      "valid_to_unix": 0,
+      "metadata": {
+        "team": "identity-platform"
+      }
+    },
+    {
+      "policy_id": "fid-trading-spans",
+      "name": "Trading engine span rate limit",
+      "description": "Fixed window: 50K spans/min — critical path, generous limit",
+      "enabled": true,
+      "priority": 100,
+      "scope": {
+        "org_id": "fidelity",
+        "service": "trading-engine",
+        "signal_type": "span"
+      },
+      "algorithm": {
+        "type": "fixed_window",
+        "limit": 50000,
+        "window": "1m"
+      },
+      "action": "drop",
+      "failure_mode": "fail_open",
+      "enforcement_mode": "enforce",
+      "rollout_percent": 100,
+      "valid_from_unix": 0,
+      "valid_to_unix": 0,
+      "metadata": {
+        "team": "trading-platform",
+        "sla": "P0"
+      }
+    },
+    {
+      "policy_id": "fid-trading-spans-shadow",
+      "name": "Trading engine span shadow test at lower limit",
+      "description": "Shadow mode: see what would happen at 20K/min without enforcing",
+      "enabled": true,
+      "priority": 50,
+      "scope": {
+        "org_id": "fidelity",
+        "service": "trading-engine",
+        "signal_type": "span"
+      },
+      "algorithm": {
+        "type": "fixed_window",
+        "limit": 20000,
+        "window": "1m"
+      },
+      "action": "drop",
+      "failure_mode": "fail_open",
+      "enforcement_mode": "shadow",
+      "rollout_percent": 100,
+      "valid_from_unix": 0,
+      "valid_to_unix": 0,
+      "metadata": {
+        "team": "trading-platform",
+        "purpose": "capacity_planning"
+      }
+    },
+    {
+      "policy_id": "fid-market-data-logs",
+      "name": "Market data service log limit",
+      "description": "Leaky bucket: smooth log delivery at 200/s for market data",
+      "enabled": true,
+      "priority": 100,
+      "scope": {
+        "org_id": "fidelity",
+        "service": "market-data",
+        "signal_type": "log"
+      },
+      "algorithm": {
+        "type": "leaky_bucket",
+        "limit": 12000,
+        "window": "1m",
+        "leak_rate": 200.0
+      },
+      "action": "drop",
+      "failure_mode": "fail_open",
+      "enforcement_mode": "enforce",
+      "rollout_percent": 100,
+      "valid_from_unix": 0,
+      "valid_to_unix": 0,
+      "metadata": {
+        "team": "market-data-platform"
+      }
+    },
+    {
+      "policy_id": "fid-market-data-metrics",
+      "name": "Market data Datadog metric submissions",
+      "description": "Quota: 1M metric points per hour for cost control",
+      "enabled": true,
+      "priority": 100,
+      "scope": {
+        "org_id": "fidelity",
+        "service": "market-data",
+        "signal_type": "metric"
+      },
+      "algorithm": {
+        "type": "quota",
+        "limit": 1000000,
+        "quota_period": "1h"
+      },
+      "action": "drop_low_priority",
+      "failure_mode": "fail_open",
+      "enforcement_mode": "enforce",
+      "rollout_percent": 100,
+      "valid_from_unix": 0,
+      "valid_to_unix": 0,
+      "metadata": {
+        "team": "market-data-platform",
+        "cost_center": "CC-MKT-002",
+        "rationale": "Datadog charges per metric point — enforce hourly quota"
+      }
+    },
+    {
+      "policy_id": "fid-risk-api-http",
+      "name": "Risk API HTTP rate limit (Envoy)",
+      "description": "Token bucket: 500 req/s with burst of 100 for external risk API",
+      "enabled": true,
+      "priority": 100,
+      "scope": {
+        "org_id": "fidelity",
+        "service": "risk-api",
+        "signal_type": "http",
+        "endpoint": "/v1/risk/assess",
+        "method": "POST"
+      },
+      "algorithm": {
+        "type": "token_bucket",
+        "limit": 30000,
+        "window": "1m",
+        "burst": 100,
+        "refill_rate": 500.0
+      },
+      "action": "deny",
+      "failure_mode": "fail_closed",
+      "enforcement_mode": "enforce",
+      "rollout_percent": 100,
+      "valid_from_unix": 0,
+      "valid_to_unix": 0,
+      "metadata": {
+        "team": "risk-platform",
+        "integration": "envoy_ext_authz"
+      }
+    },
+    {
+      "policy_id": "fid-risk-api-concurrency",
+      "name": "Risk API concurrency limit",
+      "description": "Max 50 in-flight risk assessments to protect downstream models",
+      "enabled": true,
+      "priority": 150,
+      "scope": {
+        "org_id": "fidelity",
+        "service": "risk-api",
+        "signal_type": "http",
+        "endpoint": "/v1/risk/assess"
+      },
+      "algorithm": {
+        "type": "concurrency",
+        "max_concurrency": 50
+      },
+      "action": "deny",
+      "failure_mode": "fail_closed",
+      "enforcement_mode": "enforce",
+      "rollout_percent": 100,
+      "valid_from_unix": 0,
+      "valid_to_unix": 0,
+      "metadata": {
+        "team": "risk-platform"
+      }
+    },
+    {
+      "policy_id": "fid-order-events-kafka",
+      "name": "Order events Kafka consumer throttle",
+      "description": "Sliding window: 100K events/min per consumer group",
+      "enabled": true,
+      "priority": 100,
+      "scope": {
+        "org_id": "fidelity",
+        "signal_type": "event",
+        "operation": "orders.placed"
+      },
+      "algorithm": {
+        "type": "sliding_window_log",
+        "limit": 100000,
+        "window": "1m"
+      },
+      "action": "delay",
+      "failure_mode": "fail_open",
+      "enforcement_mode": "enforce",
+      "rollout_percent": 100,
+      "valid_from_unix": 0,
+      "valid_to_unix": 0,
+      "metadata": {
+        "team": "order-management",
+        "integration": "kafka"
+      }
+    },
+    {
+      "policy_id": "fid-notification-logs",
+      "name": "Notification service Fluent Bit log limit",
+      "description": "Fixed window: 2K logs/min — low-priority service",
+      "enabled": true,
+      "priority": 100,
+      "scope": {
+        "org_id": "fidelity",
+        "service": "notifications",
+        "signal_type": "log"
+      },
+      "algorithm": {
+        "type": "fixed_window",
+        "limit": 2000,
+        "window": "1m"
+      },
+      "action": "drop",
+      "failure_mode": "fail_open",
+      "enforcement_mode": "enforce",
+      "rollout_percent": 100,
+      "valid_from_unix": 0,
+      "valid_to_unix": 0,
+      "metadata": {
+        "team": "notifications",
+        "integration": "fluentbit"
+      }
+    },
+    {
+      "policy_id": "fid-global-fallback",
+      "name": "Global fallback — catch all services",
+      "description": "Default limit for any service without a specific policy",
+      "enabled": true,
+      "priority": 1,
+      "scope": {
+        "org_id": "fidelity"
+      },
+      "algorithm": {
+        "type": "fixed_window",
+        "limit": 5000,
+        "window": "1m"
+      },
+      "action": "drop",
+      "failure_mode": "fail_open",
+      "enforcement_mode": "enforce",
+      "rollout_percent": 100,
+      "valid_from_unix": 0,
+      "valid_to_unix": 0,
+      "metadata": {
+        "team": "platform-engineering",
+        "purpose": "catch_all_fallback"
+      }
+    }
+  ]
+}

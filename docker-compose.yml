@@ -1,0 +1,90 @@
+# RLAAS — Full production stack
+# Usage:
+#   docker compose up -d          # start everything
+#   docker compose up rlaas       # server only (in-memory counters, file policies)
+#   docker compose --profile full up -d  # server + redis + postgres
+
+services:
+  # ── RLAAS Server ───────────────────────────────────────────
+  rlaas:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"   # HTTP API
+      - "9090:9090"   # gRPC API
+    environment:
+      RLAAS_POLICY_FILE: /etc/rlaas/policies.json
+      RLAAS_GRPC_ADDR: ":9090"
+    volumes:
+      - ./examples/fidelity-policies.json:/etc/rlaas/policies.json:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/check"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Redis (distributed counters) ───────────────────────────
+  redis:
+    image: redis:7-alpine
+    profiles: ["full"]
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 3
+    restart: unless-stopped
+
+  # ── PostgreSQL (policy + counter store) ────────────────────
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["full"]
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: rlaas
+      POSTGRES_USER: rlaas
+      POSTGRES_PASSWORD: rlaas_secret
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rlaas"]
+      interval: 5s
+      timeout: 2s
+      retries: 3
+    restart: unless-stopped
+
+  # ── RLAAS Server (full stack with Redis + Postgres) ────────
+  rlaas-full:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles: ["full"]
+    ports:
+      - "8081:8080"
+      - "9091:9090"
+    environment:
+      RLAAS_POLICY_FILE: /etc/rlaas/policies.json
+      RLAAS_GRPC_ADDR: ":9090"
+      RLAAS_COUNTER_BACKEND: redis
+      RLAAS_REDIS_ADDR: "redis:6379"
+      RLAAS_POLICY_BACKEND: postgres
+      RLAAS_POLICY_DSN: "postgres://rlaas:rlaas_secret@postgres:5432/rlaas?sslmode=disable"
+    volumes:
+      - ./examples/fidelity-policies.json:/etc/rlaas/policies.json:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  pg-data:

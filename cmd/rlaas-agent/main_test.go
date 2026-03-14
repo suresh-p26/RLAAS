@@ -192,3 +192,10 @@ func TestRunListenError(t *testing.T) {
 		t.Fatalf("expected listen error")
 	}
 }
+
+func TestDefaultListenInvalid(t *testing.T) {
+	s := &http.Server{Addr: ":-1"}
+	if err := defaultListen(s); err == nil {
+		t.Fatalf("expected error from invalid addr")
+	}
+}
