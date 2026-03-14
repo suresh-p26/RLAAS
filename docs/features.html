@@ -275,7 +275,43 @@
 <p>Batch-process logs and spans through rate-limiting policies. Worker pool with configurable concurrency. Supports fail-open and fail-closed modes. Collect processor stats (checked, allowed, denied, errors).</p>
 
 <h3>Multi-Region Allocation</h3>
-<p>Weighted proportional split of global limits across regions. Overflow detection when a region exceeds its allocation. Remainder correction ensures exact total distribution.</p>
+<p>Deploy rate limiting across multiple geographic regions with intelligent limit distribution and overflow protection.</p>
+
+<div class="info-cards">
+  <div class="info-card">
+    <h4>Weighted Proportional Split</h4>
+    <p>Distribute a global limit across regions based on configurable weights. A region with weight 5 gets 5× the allocation of a region with weight 1. Remainder correction ensures the allocations sum to exactly the global limit.</p>
+  </div>
+  <div class="info-card">
+    <h4>Overflow Detection</h4>
+    <p>Compare real-time per-region usage against allocated limits. Instantly identify which regions have exceeded their allocation and by how much — enabling rebalancing or alerting.</p>
+  </div>
+  <div class="info-card">
+    <h4>Region-Scoped Policies</h4>
+    <p>Use the <code>region</code> scope dimension or <code>match_expr</code> to create policies that apply only in specific regions (e.g., <code>region==us-east-1</code>).</p>
+  </div>
+</div>
+
+<h4>How It Works</h4>
+<p>Define region weights and call <code>AllocateGlobalLimit</code>:</p>
+<pre><code>// Global limit: 10,000 req/min split across 3 regions
+weights := []region.RegionWeight{
+    {Region: "us-east-1", Weight: 5},
+    {Region: "eu-west-1", Weight: 3},
+    {Region: "ap-south-1", Weight: 2},
+}
+
+allocations := region.AllocateGlobalLimit(10000, weights)
+// → us-east-1: 5000, eu-west-1: 3000, ap-south-1: 2000
+
+// Check for overflow
+overflow := region.RegionalOverflow(currentUsage, allocations)
+// → map["us-east-1": 250]  (exceeded by 250)</code></pre>
+
+<div class="callout callout-info">
+  <strong>Approximate Global, Exact Regional</strong>
+  Each region enforces its allocated limit locally with exact precision. Global enforcement is approximate (sum of regional allocations) — the practical trade-off for low-latency distributed rate limiting.
+</div>
 
 <h3>Non-Go Client SDKs</h3>
 <p>Full-featured HTTP client SDKs for Python, TypeScript, Java, and .NET. All support check, acquire/release, policy CRUD, validate/rollout/rollback, audit/versions, and analytics.</p>

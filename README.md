@@ -51,17 +51,18 @@ It supports three deployment models:
 - Performance features:
   - lock-sharded in-memory counters
   - invalidation burst coalescing in sidecar sync loop
+- Multi-region support:
+  - weighted proportional allocation of global limits across regions
+  - automatic remainder correction for exact total distribution
+  - per-region overflow detection (usage vs allocation)
+  - OTEL processor primitives for batch log/span filtering with regional awareness
+  - advanced `match_expr` support for region-scoped policy expressions
 - Non-Go SDKs:
   - Python SDK (`sdk/python`)
   - TypeScript SDK (`sdk/typescript`)
   - Java SDK (`sdk/java`)
   - .NET SDK (`sdk/dotnet`)
 
-### Recently completed from previous “in-progress” scope
-
-- OTEL processor primitives for batch log/span filtering with worker pools
-- Multi-region allocation primitives for regional limit split and overflow detection
-- Advanced `match_expr` policy expression support in matcher metadata
 
 ### Available backends
 
