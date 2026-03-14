@@ -149,3 +149,22 @@ type Policy struct {
 	ValidToUnix     int64             `json:"valid_to_unix"`
 	Metadata        map[string]string `json:"metadata"`
 }
+
+// PolicyAuditEntry records who changed a policy and when.
+type PolicyAuditEntry struct {
+	AuditID       string  `json:"audit_id"`
+	PolicyID      string  `json:"policy_id"`
+	ActionType    string  `json:"action_type"`
+	ChangedBy     string  `json:"changed_by,omitempty"`
+	ChangedAtUnix int64   `json:"changed_at_unix"`
+	OldValue      *Policy `json:"old_value,omitempty"`
+	NewValue      *Policy `json:"new_value,omitempty"`
+}
+
+// PolicyVersion stores immutable snapshots for rollback and history views.
+type PolicyVersion struct {
+	PolicyID      string `json:"policy_id"`
+	Version       int64  `json:"version"`
+	CreatedAtUnix int64  `json:"created_at_unix"`
+	Snapshot      Policy `json:"snapshot"`
+}
