@@ -1,13 +1,13 @@
 {
   "policies": [
     {
-      "policy_id": "fid-payments-logs",
+      "policy_id": "nw-payments-logs",
       "name": "Payments service log rate limit",
       "description": "Token bucket: 10K logs/min with burst of 2K for the payments service",
       "enabled": true,
       "priority": 100,
       "scope": {
-        "org_id": "fidelity",
+        "org_id": "northwind",
         "service": "payments",
         "signal_type": "log"
       },
@@ -30,13 +30,13 @@
       }
     },
     {
-      "policy_id": "fid-payments-error-logs",
+      "policy_id": "nw-payments-error-logs",
       "name": "Payments ERROR logs — higher limit",
       "description": "Error logs get higher limits to avoid losing critical signals",
       "enabled": true,
       "priority": 200,
       "scope": {
-        "org_id": "fidelity",
+        "org_id": "northwind",
         "service": "payments",
         "signal_type": "log",
         "severity": "ERROR"
@@ -60,13 +60,13 @@
       }
     },
     {
-      "policy_id": "fid-auth-logs",
+      "policy_id": "nw-auth-logs",
       "name": "Auth service log rate limit",
       "description": "Sliding window: 5K logs/min for auth service",
       "enabled": true,
       "priority": 100,
       "scope": {
-        "org_id": "fidelity",
+        "org_id": "northwind",
         "service": "auth",
         "signal_type": "log"
       },
@@ -87,13 +87,13 @@
       }
     },
     {
-      "policy_id": "fid-trading-spans",
+      "policy_id": "nw-trading-spans",
       "name": "Trading engine span rate limit",
       "description": "Fixed window: 50K spans/min — critical path, generous limit",
       "enabled": true,
       "priority": 100,
       "scope": {
-        "org_id": "fidelity",
+        "org_id": "northwind",
         "service": "trading-engine",
         "signal_type": "span"
       },
@@ -114,13 +114,13 @@
       }
     },
     {
-      "policy_id": "fid-trading-spans-shadow",
+      "policy_id": "nw-trading-spans-shadow",
       "name": "Trading engine span shadow test at lower limit",
       "description": "Shadow mode: see what would happen at 20K/min without enforcing",
       "enabled": true,
       "priority": 50,
       "scope": {
-        "org_id": "fidelity",
+        "org_id": "northwind",
         "service": "trading-engine",
         "signal_type": "span"
       },
@@ -141,13 +141,13 @@
       }
     },
     {
-      "policy_id": "fid-market-data-logs",
+      "policy_id": "nw-market-data-logs",
       "name": "Market data service log limit",
       "description": "Leaky bucket: smooth log delivery at 200/s for market data",
       "enabled": true,
       "priority": 100,
       "scope": {
-        "org_id": "fidelity",
+        "org_id": "northwind",
         "service": "market-data",
         "signal_type": "log"
       },
@@ -168,13 +168,13 @@
       }
     },
     {
-      "policy_id": "fid-market-data-metrics",
+      "policy_id": "nw-market-data-metrics",
       "name": "Market data Datadog metric submissions",
       "description": "Quota: 1M metric points per hour for cost control",
       "enabled": true,
       "priority": 100,
       "scope": {
-        "org_id": "fidelity",
+        "org_id": "northwind",
         "service": "market-data",
         "signal_type": "metric"
       },
@@ -196,13 +196,13 @@
       }
     },
     {
-      "policy_id": "fid-risk-api-http",
+      "policy_id": "nw-risk-api-http",
       "name": "Risk API HTTP rate limit (Envoy)",
       "description": "Token bucket: 500 req/s with burst of 100 for external risk API",
       "enabled": true,
       "priority": 100,
       "scope": {
-        "org_id": "fidelity",
+        "org_id": "northwind",
         "service": "risk-api",
         "signal_type": "http",
         "endpoint": "/v1/risk/assess",
@@ -227,13 +227,13 @@
       }
     },
     {
-      "policy_id": "fid-risk-api-concurrency",
+      "policy_id": "nw-risk-api-concurrency",
       "name": "Risk API concurrency limit",
       "description": "Max 50 in-flight risk assessments to protect downstream models",
       "enabled": true,
       "priority": 150,
       "scope": {
-        "org_id": "fidelity",
+        "org_id": "northwind",
         "service": "risk-api",
         "signal_type": "http",
         "endpoint": "/v1/risk/assess"
@@ -253,13 +253,13 @@
       }
     },
     {
-      "policy_id": "fid-order-events-kafka",
+      "policy_id": "nw-order-events-kafka",
       "name": "Order events Kafka consumer throttle",
       "description": "Sliding window: 100K events/min per consumer group",
       "enabled": true,
       "priority": 100,
       "scope": {
-        "org_id": "fidelity",
+        "org_id": "northwind",
         "signal_type": "event",
         "operation": "orders.placed"
       },
@@ -280,13 +280,13 @@
       }
     },
     {
-      "policy_id": "fid-notification-logs",
+      "policy_id": "nw-notification-logs",
       "name": "Notification service Fluent Bit log limit",
       "description": "Fixed window: 2K logs/min — low-priority service",
       "enabled": true,
       "priority": 100,
       "scope": {
-        "org_id": "fidelity",
+        "org_id": "northwind",
         "service": "notifications",
         "signal_type": "log"
       },
@@ -307,13 +307,13 @@
       }
     },
     {
-      "policy_id": "fid-global-fallback",
+      "policy_id": "nw-global-fallback",
       "name": "Global fallback — catch all services",
       "description": "Default limit for any service without a specific policy",
       "enabled": true,
       "priority": 1,
       "scope": {
-        "org_id": "fidelity"
+        "org_id": "northwind"
       },
       "algorithm": {
         "type": "fixed_window",
