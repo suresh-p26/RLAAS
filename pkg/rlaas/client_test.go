@@ -3,9 +3,9 @@ package rlaas
 import (
 	"context"
 	"path/filepath"
-	"rlaas/internal/model"
 	"rlaas/internal/store/counter/memory"
 	filestore "rlaas/internal/store/policy/file"
+	"rlaas/pkg/model"
 	"testing"
 )
 

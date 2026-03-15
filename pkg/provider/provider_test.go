@@ -3,7 +3,7 @@ package provider
 import (
 	"context"
 	"errors"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"testing"
 )
 

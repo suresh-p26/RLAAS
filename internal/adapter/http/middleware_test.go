@@ -7,7 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"testing"
 	"time"
 )

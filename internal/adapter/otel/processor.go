@@ -5,8 +5,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"rlaas/internal/model"
-	"rlaas/internal/provider"
+	"rlaas/pkg/model"
+	"rlaas/pkg/provider"
 )
 
 // LogRecord is a lightweight telemetry log model for processor-style filtering.

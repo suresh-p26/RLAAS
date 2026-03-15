@@ -3,8 +3,8 @@ package slidingcounter
 import (
 	"context"
 	"errors"
-	"rlaas/internal/model"
 	"rlaas/internal/store"
+	"rlaas/pkg/model"
 	"testing"
 	"time"
 )

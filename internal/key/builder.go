@@ -4,7 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"sort"
 	"strings"
 )

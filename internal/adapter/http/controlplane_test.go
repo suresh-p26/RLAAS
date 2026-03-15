@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"rlaas/internal/model"
 	"rlaas/internal/store/counter/memory"
 	filestore "rlaas/internal/store/policy/file"
+	"rlaas/pkg/model"
 	"rlaas/pkg/rlaas"
 	"testing"
 )

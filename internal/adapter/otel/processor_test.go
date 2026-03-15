@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	"rlaas/internal/model"
-	"rlaas/internal/provider"
+	"rlaas/pkg/model"
+	"rlaas/pkg/provider"
 )
 
 type processorEvalStub struct {

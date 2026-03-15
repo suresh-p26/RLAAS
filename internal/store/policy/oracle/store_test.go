@@ -2,7 +2,7 @@ package oracle
 
 import (
 	"context"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"testing"
 )
 

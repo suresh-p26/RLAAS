@@ -3,7 +3,7 @@ package matcher
 import (
 	"errors"
 	"fmt"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"sort"
 	"strings"
 )

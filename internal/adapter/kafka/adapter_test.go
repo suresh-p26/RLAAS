@@ -2,8 +2,8 @@ package kafka
 
 import (
 	"context"
-	"rlaas/internal/model"
-	"rlaas/internal/provider"
+	"rlaas/pkg/model"
+	"rlaas/pkg/provider"
 	"testing"
 	"time"
 )

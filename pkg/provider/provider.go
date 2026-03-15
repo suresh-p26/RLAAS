@@ -19,7 +19,7 @@ package provider
 
 import (
 	"context"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"sync"
 )
 

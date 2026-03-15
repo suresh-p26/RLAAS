@@ -7,7 +7,7 @@ import (
 	"time"
 
 	rlaasv1 "rlaas/api/proto"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 )
 
 // LeaseServiceEvaluator is the engine contract needed by the gRPC decision service.

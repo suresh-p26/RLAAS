@@ -3,9 +3,9 @@ package slidinglog
 import (
 	"context"
 	"errors"
-	"rlaas/internal/model"
 	"rlaas/internal/store"
 	"rlaas/internal/store/counter/memory"
+	"rlaas/pkg/model"
 	"testing"
 	"time"
 )
