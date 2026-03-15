@@ -626,6 +626,91 @@ tr:last-child td { border-bottom: none; }
 .callout strong  { display: block; margin-bottom: .25rem; }
 
 /* ===================================================================
+   DOC LAYOUT (providers page)
+   =================================================================== */
+.doc-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  max-width: var(--wide-width);
+  margin: 0 auto;
+  padding: 0 2rem;
+  gap: 3rem;
+}
+.doc-sidebar {
+  position: sticky;
+  top: 80px;
+  align-self: start;
+  padding: 2rem 0;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+.doc-sidebar h4 {
+  font-family: var(--font-sans);
+  font-size: .75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+  margin-bottom: .75rem;
+}
+.doc-sidebar ul { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+.doc-sidebar li { margin-bottom: .2rem; }
+.doc-sidebar a {
+  display: block;
+  padding: .3rem .75rem;
+  font-size: .87rem;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all var(--transition);
+}
+.doc-sidebar a:hover { background: var(--accent-light); color: var(--accent); text-decoration: none; }
+.doc-sidebar a.active { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+
+.doc-content {
+  padding: 3rem 0 5rem;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .doc-layout { grid-template-columns: 1fr; padding: 0 1.5rem; }
+  .doc-sidebar { display: none; }
+}
+
+/* ===================================================================
+   INFO-CARD GRID (providers page)
+   =================================================================== */
+.info-card-grid {
+  display: grid;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.info-card-grid .info-card {
+  text-align: center;
+  padding: 1.25rem 1rem;
+}
+.info-card-title {
+  font-family: var(--font-sans);
+  font-size: .75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+  margin-bottom: .35rem;
+}
+.info-card-value {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.info-card-value code {
+  font-size: .88rem;
+  background: var(--accent-light);
+  padding: .15rem .4rem;
+  border-radius: 4px;
+}
+
+/* ===================================================================
    UTILITIES
    =================================================================== */
 .text-center  { text-align: center; }
@@ -638,6 +723,6 @@ tr:last-child td { border-bottom: none; }
 
 /* print */
 @media print {
-  .nav, .footer, .scroll-top, .sidebar { display: none; }
+  .nav, .footer, .scroll-top, .sidebar, .doc-sidebar { display: none; }
   .hero { background: #333; -webkit-print-color-adjust: exact; }
 }
