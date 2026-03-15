@@ -26,7 +26,7 @@ func (s staticPolicyStore) GetPolicyByID(_ context.Context, policyID string) (*m
 	return &p, nil
 }
 
-func (s staticPolicyStore) UpsertPolicy(_ context.Context, p model.Policy) error {
+func (s *staticPolicyStore) UpsertPolicy(_ context.Context, p model.Policy) error {
 	s.policy = p
 	return nil
 }
@@ -40,7 +40,7 @@ func (s staticPolicyStore) ListPolicies(_ context.Context, _ map[string]string) 
 }
 
 func BenchmarkEvaluateFixedWindow(b *testing.B) {
-	ps := staticPolicyStore{policy: model.Policy{
+	ps := &staticPolicyStore{policy: model.Policy{
 		PolicyID: "bench-policy",
 		Name:     "bench",
 		Enabled:  true,

@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Providers — RLAAS</title>
+  <meta name="description" content="RLAAS multi-provider architecture: OpenTelemetry, Datadog, Fluent Bit, Envoy, Kafka adapters for rate limiting any telemetry or traffic pipeline." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav" id="nav"><div class="nav-inner">
+  <a href="index.html" class="nav-logo">RLAAS<span>.</span></a>
+  <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <ul class="nav-links">
+    <li><a href="index.html">Home</a></li>
+    <li><a href="features.html">Features</a></li>
+    <li><a href="design.html">Design</a></li>
+    <li><a href="api.html">API</a></li>
+    <li><a href="sdks.html">SDKs</a></li>
+    <li><a href="providers.html" class="active">Providers</a></li>
+    <li><a href="getting-started.html">Get Started</a></li>
+  </ul>
+</div></nav>
+
+<!-- HERO -->
+<header class="hero" style="padding:4rem 2rem 3.5rem;">
+  <h1>Multi-Provider Architecture</h1>
+  <p class="subtitle">One policy engine. Every observability and traffic pipeline. Rate limit OpenTelemetry, Datadog, Fluent Bit, Envoy, Kafka — and anything you build.</p>
+</header>
+
+<main class="doc-layout">
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<aside class="doc-sidebar">
+  <h4>On this page</h4>
+  <ul>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#spi">Provider SPI</a></li>
+    <li><a href="#otel">OpenTelemetry</a></li>
+    <li><a href="#datadog">Datadog</a></li>
+    <li><a href="#fluentbit">Fluent Bit</a></li>
+    <li><a href="#envoy">Envoy / Istio</a></li>
+    <li><a href="#kafka">Kafka</a></li>
+    <li><a href="#custom">Custom Providers</a></li>
+    <li><a href="#registry">Provider Registry</a></li>
+    <li><a href="#enterprise">Enterprise Example</a></li>
+  </ul>
+</aside>
+
+<!-- ═══════════════ CONTENT ═══════════════ -->
+<div class="doc-content">
+
+<!-- Architecture -->
+<section id="architecture">
+<h2>Architecture Overview</h2>
+<p>RLAAS uses a <strong>provider-agnostic core</strong> with thin adapter layers for each telemetry or traffic provider. The core engine only knows about <code>model.RequestContext</code> → <code>model.Decision</code>. Every provider adapter simply converts its native format into this universal contract.</p>
+
+<div class="callout callout-tip">
+  <strong>Key insight:</strong> The core engine is never coupled to any provider. Adding a new provider is ~100 lines of mapping code with zero changes to the engine.
+</div>
+
+<pre class="arch-diagram">Provider Adapters (thin mapping)          Core Engine (unchanged)
+┌──────────────────────┐                 ┌────────────────────────┐
+│ OpenTelemetry        │──┐              │                        │
+│ (logs, traces)       │  │   Provider   │  TelemetryRecord       │
+├──────────────────────┤  │   SPI        │        ↓               │
+│ Datadog Agent        │──┼──────────────→  model.RequestContext  │
+│ (logs, metrics)      │  │   Interface  │        ↓               │
+├──────────────────────┤  │              │  Policy Matcher         │
+│ Fluent Bit           │──┤              │        ↓               │
+│ (logs)               │  │              │  Algorithm Engine       │
+├──────────────────────┤  │              │        ↓               │
+│ Envoy / Istio        │──┤              │  model.Decision         │
+│ (HTTP rate limit)    │  │              │                        │
+├──────────────────────┤  │              └────────────────────────┘
+│ Kafka                │──┤
+│ (events)             │  │
+├──────────────────────┤  │
+│ Your Custom Provider │──┘
+└──────────────────────┘</pre>
+</section>
+
+<!-- Provider SPI -->
+<section id="spi">
+<h2>Provider SPI</h2>
+<p>The Service Provider Interface lives in <code>internal/provider/</code> and defines three core types:</p>
+
+<h3>TelemetryRecord</h3>
+<p>The universal input format. Any provider converts its native signals into this struct:</p>
+<pre><code>type TelemetryRecord struct {
+    Signal      SignalKind        // log, span, metric, event, http
+    OrgID       string            // organization
+    Service     string            // originating service
+    Operation   string            // span name, endpoint, topic
+    Severity    string            // INFO, WARN, ERROR
+    Environment string            // prod, staging, dev
+    Region      string            // us-east-1, eu-west-1
+    Endpoint    string            // HTTP path
+    Method      string            // HTTP method
+    Tags        map[string]string // arbitrary metadata
+}</code></pre>
+
+<h3>Adapter Interface</h3>
+<p>Every provider implements this:</p>
+<pre><code>type Adapter interface {
+    Name() string                                     // "otel", "datadog", etc.
+    SignalKinds() []SignalKind                         // what signals it handles
+    ProcessBatch(ctx, records) ([]Decision, error)     // evaluate a batch
+}</code></pre>
+
+<h3>BatchProcessor</h3>
+<p>A reusable concurrent evaluator that any adapter can embed:</p>
+<pre><code>bp := provider.BatchProcessor{
+    Eval:     rlaasClient,  // any Evaluator
+    Workers:  4,            // concurrent goroutines
+    FailOpen: true,         // allow on engine error
+}
+decisions := bp.Process(ctx, records)</code></pre>
+</section>
+
+<!-- OpenTelemetry -->
+<section id="otel">
+<h2>OpenTelemetry</h2>
+<div class="info-card-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+  <div class="info-card"><div class="info-card-title">Signal Types</div><div class="info-card-value">Logs, Spans</div></div>
+  <div class="info-card"><div class="info-card-title">Package</div><div class="info-card-value"><code>internal/adapter/otel</code></div></div>
+  <div class="info-card"><div class="info-card-title">Integration</div><div class="info-card-value">Embedded processor in Collector agent</div></div>
+</div>
+
+<p>The OTEL adapter processes log and span batches with concurrent workers. It's the original adapter and implements both the legacy API and the Provider SPI.</p>
+
+<h3>Usage — Direct Processor</h3>
+<pre><code>import "rlaas/internal/adapter/otel"
+
+proc := otel.NewProcessor(rlaasClient, 4, true) // 4 workers, fail-open
+keptLogs := proc.ProcessLogs(ctx, logs)
+keptSpans := proc.ProcessSpans(ctx, spans)
+stats := proc.Stats() // {Allowed: 9500, Dropped: 500, Errors: 0}</code></pre>
+
+<h3>Usage — Via Provider SPI</h3>
+<pre><code>adapter := otel.NewProviderAdapter(rlaasClient, 4, true)
+registry.Register(adapter) // registers as "otel"
+
+decisions, _ := adapter.ProcessBatch(ctx, []provider.TelemetryRecord{
+    {Signal: provider.SignalLog, OrgID: "fidelity", Service: "payments", Severity: "INFO"},
+    {Signal: provider.SignalSpan, OrgID: "fidelity", Service: "trading", Operation: "execute_trade"},
+})</code></pre>
+
+<h3>Collector Pipeline Integration</h3>
+<pre><code># otel-collector-config.yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  rlaas:
+    policy_file: /etc/rlaas/policies.json
+    workers: 4
+    fail_open: true
+    org_id: "fidelity"
+    service_attribute: "service.name"
+
+exporters:
+  otlp:
+    endpoint: tempo:4317
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [rlaas]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp]
+      processors: [rlaas]
+      exporters: [otlp]</code></pre>
+</section>
+
+<!-- Datadog -->
+<section id="datadog">
+<h2>Datadog</h2>
+<div class="info-card-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+  <div class="info-card"><div class="info-card-title">Signal Types</div><div class="info-card-value">Logs, Metrics</div></div>
+  <div class="info-card"><div class="info-card-title">Package</div><div class="info-card-value"><code>internal/adapter/datadog</code></div></div>
+  <div class="info-card"><div class="info-card-title">Integration</div><div class="info-card-value">Agent check, log processor</div></div>
+</div>
+
+<p>The Datadog adapter converts Datadog-native <code>LogEntry</code> and <code>MetricSample</code> records into RLAAS evaluations. Datadog tag format (<code>key:value</code>) is automatically parsed.</p>
+
+<h3>Filter Logs</h3>
+<pre><code>import "rlaas/internal/adapter/datadog"
+
+adapter := datadog.NewAdapter(rlaasClient, "fidelity", 4, true)
+
+logs := []datadog.LogEntry{
+    {Service: "payments", Status: "info", Tags: []string{"env:prod", "team:pay"}},
+    {Service: "auth",     Status: "warn", Tags: []string{"env:prod"}},
+}
+kept := adapter.FilterLogs(ctx, logs)
+// Only logs within rate limits are kept</code></pre>
+
+<h3>Filter Metrics (cost control)</h3>
+<pre><code>metrics := []datadog.MetricSample{
+    {Metric: "cpu.user",     Service: "market-data", Type: "gauge"},
+    {Metric: "orders.count", Service: "trading",     Type: "count"},
+}
+kept := adapter.FilterMetrics(ctx, metrics)
+// Enforce Datadog metric submission quotas</code></pre>
+
+<div class="callout callout-info">
+  <strong>Cost control:</strong> Datadog charges per metric point. Use the quota algorithm to enforce hourly/daily budgets on metric submissions before they hit intake.
+</div>
+</section>
+
+<!-- Fluent Bit -->
+<section id="fluentbit">
+<h2>Fluent Bit / Fluentd</h2>
+<div class="info-card-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+  <div class="info-card"><div class="info-card-title">Signal Types</div><div class="info-card-value">Logs</div></div>
+  <div class="info-card"><div class="info-card-title">Package</div><div class="info-card-value"><code>internal/adapter/fluentbit</code></div></div>
+  <div class="info-card"><div class="info-card-title">Integration</div><div class="info-card-value">Go output plugin, sidecar filter</div></div>
+</div>
+
+<p>The Fluent Bit adapter handles the standard Fluent Bit record format: a routing tag plus key-value field map. Service name resolution falls back from field to tag automatically.</p>
+
+<h3>Usage</h3>
+<pre><code>import "rlaas/internal/adapter/fluentbit"
+
+adapter := fluentbit.NewAdapter(rlaasClient, "fidelity", 4, true)
+// Optionally customize field mapping:
+adapter.ServiceField = "kubernetes.container_name"
+adapter.SeverityField = "log_level"
+
+records := []fluentbit.Record{
+    {Tag: "kube.payments", Fields: map[string]string{
+        "kubernetes.container_name": "payments",
+        "log_level": "info",
+        "message": "transaction processed",
+    }},
+}
+kept := adapter.FilterRecords(ctx, records)</code></pre>
+
+<h3>Fluent Bit Pipeline Config</h3>
+<pre><code>[INPUT]
+    Name              tail
+    Path              /var/log/containers/*.log
+    Parser            docker
+    Tag               kube.*
+
+[FILTER]
+    Name              kubernetes
+    Match             kube.*
+
+# RLAAS rate limiting applied here via Go plugin or sidecar
+
+[OUTPUT]
+    Name              splunk
+    Match             *
+    Host              splunk.internal
+    Token             ${SPLUNK_TOKEN}</code></pre>
+</section>
+
+<!-- Envoy -->
+<section id="envoy">
+<h2>Envoy / Istio</h2>
+<div class="info-card-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+  <div class="info-card"><div class="info-card-title">Signal Types</div><div class="info-card-value">HTTP traffic</div></div>
+  <div class="info-card"><div class="info-card-title">Package</div><div class="info-card-value"><code>internal/adapter/envoy</code></div></div>
+  <div class="info-card"><div class="info-card-title">Integration</div><div class="info-card-value">Rate Limit Service, ext_authz</div></div>
+</div>
+
+<p>The Envoy adapter supports two integration modes: Envoy's native rate limit service protocol (gRPC descriptors) and the ext_authz external authorization check.</p>
+
+<h3>Rate Limit Service</h3>
+<pre><code>import "rlaas/internal/adapter/envoy"
+
+adapter := envoy.NewAdapter(rlaasClient, "fidelity", 4, true)
+
+// Envoy sends descriptors like:
+// [{"entries": [{"key": "service", "value": "risk-api"}, {"key": "path", "value": "/v1/risk/assess"}]}]
+descriptors := []envoy.Descriptor{
+    {Entries: []envoy.DescriptorEntry{
+        {Key: "service", Value: "risk-api"},
+        {Key: "path", Value: "/v1/risk/assess"},
+        {Key: "method", Value: "POST"},
+    }},
+}
+response := adapter.CheckRateLimit(ctx, "fidelity", descriptors)
+// response.OverallCode == RateLimitOK or RateLimitOverLimit</code></pre>
+
+<h3>ext_authz Mode</h3>
+<pre><code>authResp := adapter.CheckAuth(ctx, envoy.AuthRequest{
+    Method:  "POST",
+    Path:    "/v1/risk/assess",
+    Service: "risk-api",
+    Headers: map[string]string{"x-api-key": "key-123"},
+})
+// authResp.Allowed == true/false
+// authResp.StatusCode == 200 or 429</code></pre>
+
+<h3>Envoy Config</h3>
+<pre><code># envoy.yaml
+http_filters:
+  - name: envoy.filters.http.ratelimit
+    typed_config:
+      "@type": type.googleapis.com/envoy.extensions.filters.http.ratelimit.v3.RateLimit
+      domain: fidelity
+      rate_limit_service:
+        grpc_service:
+          envoy_grpc:
+            cluster_name: rlaas
+        transport_api_version: V3
+
+clusters:
+  - name: rlaas
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: rlaas
+      endpoints:
+        - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: rlaas-server
+                    port_value: 9090</code></pre>
+</section>
+
+<!-- Kafka -->
+<section id="kafka">
+<h2>Kafka</h2>
+<div class="info-card-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+  <div class="info-card"><div class="info-card-title">Signal Types</div><div class="info-card-value">Events</div></div>
+  <div class="info-card"><div class="info-card-title">Package</div><div class="info-card-value"><code>internal/adapter/kafka</code></div></div>
+  <div class="info-card"><div class="info-card-title">Integration</div><div class="info-card-value">Consumer interceptor, producer filter</div></div>
+</div>
+
+<p>The Kafka adapter enforces per-topic, per-consumer-group rate limits on event streams. Use it as a consumer interceptor to protect downstream systems from burst traffic.</p>
+
+<h3>Usage</h3>
+<pre><code>import "rlaas/internal/adapter/kafka"
+
+adapter := kafka.NewAdapter(rlaasClient, "fidelity", 4, true)
+
+messages := []kafka.Message{
+    {Topic: "orders.placed", Service: "order-service", Key: "o-123",
+     ConsumerGroup: "order-processor"},
+    {Topic: "orders.placed", Service: "order-service", Key: "o-456",
+     ConsumerGroup: "order-processor"},
+}
+kept := adapter.FilterMessages(ctx, messages)
+// Process only the messages that pass rate limiting</code></pre>
+
+<div class="callout callout-tip">
+  <strong>Pattern:</strong> Use the <code>delay</code> action instead of <code>drop</code> to slow consumers rather than losing events. The <code>retry_after</code> field tells the consumer when to retry.
+</div>
+</section>
+
+<!-- Custom Providers -->
+<section id="custom">
+<h2>Building a Custom Provider</h2>
+<p>Adding a new provider takes ~100 lines. Here's the full pattern:</p>
+
+<pre><code>package myprovider
+
+import (
+    "context"
+    "rlaas/internal/provider"
+)
+
+// MyRecord is your provider's native format.
+type MyRecord struct {
+    Service string
+    Data    map[string]string
+}
+
+type Adapter struct {
+    bp    provider.BatchProcessor
+    orgID string
+}
+
+func NewAdapter(eval provider.Evaluator, orgID string) *Adapter {
+    return &Adapter{
+        bp:    provider.BatchProcessor{Eval: eval, Workers: 4, FailOpen: true},
+        orgID: orgID,
+    }
+}
+
+func (a *Adapter) Name() string { return "myprovider" }
+
+func (a *Adapter) SignalKinds() []provider.SignalKind {
+    return []provider.SignalKind{provider.SignalLog}
+}
+
+func (a *Adapter) ProcessBatch(ctx context.Context, records []provider.TelemetryRecord) ([]provider.Decision, error) {
+    return a.bp.Process(ctx, records), nil
+}
+
+func (a *Adapter) Filter(ctx context.Context, records []MyRecord) []MyRecord {
+    telRecords := make([]provider.TelemetryRecord, len(records))
+    for i, r := range records {
+        telRecords[i] = provider.TelemetryRecord{
+            Signal:  provider.SignalLog,
+            OrgID:   a.orgID,
+            Service: r.Service,
+            Tags:    r.Data,
+        }
+    }
+    decisions := a.bp.Process(ctx, telRecords)
+    out := make([]MyRecord, 0, len(records))
+    for i, d := range decisions {
+        if d.Allowed {
+            out = append(out, records[i])
+        }
+    }
+    return out
+}
+
+var _ provider.Adapter = (*Adapter)(nil)</code></pre>
+</section>
+
+<!-- Registry -->
+<section id="registry">
+<h2>Provider Registry</h2>
+<p>The registry is a thread-safe store for dynamic adapter lookup at runtime:</p>
+
+<pre><code>import "rlaas/internal/provider"
+
+// Register adapters at startup
+registry := provider.NewRegistry()
+registry.MustRegister(otelAdapter)
+registry.MustRegister(datadogAdapter)
+registry.MustRegister(envoyAdapter)
+registry.MustRegister(kafkaAdapter)
+
+// Lookup by name at runtime
+adapter, ok := registry.Get("datadog")
+if ok {
+    decisions, _ := adapter.ProcessBatch(ctx, records)
+}
+
+// List all registered providers
+names := registry.List() // ["otel", "datadog", "envoy", "kafka"]</code></pre>
+
+<p>There's also a global <code>provider.DefaultRegistry</code> for simple use cases where providers self-register via init().</p>
+</section>
+
+<!-- Enterprise Example -->
+<section id="enterprise">
+<h2>Enterprise Example: Fidelity</h2>
+<p>Here's how a Fidelity-class enterprise would deploy RLAAS across multiple providers with per-service policies:</p>
+
+<pre class="arch-diagram">┌─────────────────────────────────────────────────────────────────┐
+│ Fidelity Microservices                                          │
+│  payments │ auth │ trading │ market-data │ risk-api │ orders    │
+└─────┬──────┬──────┬──────────┬────────────┬──────────┬──────────┘
+      │OTLP  │OTLP  │DD Logs   │DD Metrics  │HTTP      │Kafka
+      ▼      ▼      ▼          ▼            ▼          ▼
+┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+│ OTEL     │ │ Datadog  │ │ Fluent   │ │ Envoy    │ │ Kafka    │
+│Collector │ │ Agent    │ │ Bit      │ │ Proxy    │ │Consumer  │
+│Processor │ │ Adapter  │ │ Adapter  │ │ ext_authz│ │Intercept │
+└─────┬────┘ └─────┬────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘
+      │            │           │             │            │
+      └────────────┴───────────┴──────┬──────┴────────────┘
+                                      │
+                              ┌───────▼────────┐
+                              │  RLAAS Server   │
+                              │  (Policy Engine)│
+                              │  ┌────────────┐ │
+                              │  │ 12 Policies│ │
+                              │  │ per-service│ │
+                              │  │ per-signal │ │
+                              │  └────────────┘ │
+                              │  Redis counters │
+                              │  Postgres store │
+                              └────────────────┘</pre>
+
+<h3>Policy Matrix</h3>
+<table>
+  <thead>
+    <tr><th>Service</th><th>Provider</th><th>Signal</th><th>Algorithm</th><th>Limit</th><th>Action</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>payments</td><td>OTEL</td><td>log</td><td>Token Bucket</td><td>10K/min + 2K burst</td><td>drop</td></tr>
+    <tr><td>payments</td><td>OTEL</td><td>log (ERROR)</td><td>Token Bucket</td><td>50K/min</td><td>allow</td></tr>
+    <tr><td>auth</td><td>OTEL</td><td>log</td><td>Sliding Window</td><td>5K/min</td><td>drop</td></tr>
+    <tr><td>trading-engine</td><td>OTEL</td><td>span</td><td>Fixed Window</td><td>50K/min</td><td>drop</td></tr>
+    <tr><td>market-data</td><td>Fluent Bit</td><td>log</td><td>Leaky Bucket</td><td>200/s (smooth)</td><td>drop</td></tr>
+    <tr><td>market-data</td><td>Datadog</td><td>metric</td><td>Quota</td><td>1M points/hour</td><td>drop_low_priority</td></tr>
+    <tr><td>risk-api</td><td>Envoy</td><td>http</td><td>Token Bucket</td><td>500 req/s</td><td>deny</td></tr>
+    <tr><td>risk-api</td><td>Envoy</td><td>http</td><td>Concurrency</td><td>50 in-flight</td><td>deny</td></tr>
+    <tr><td>orders</td><td>Kafka</td><td>event</td><td>Sliding Log</td><td>100K/min</td><td>delay</td></tr>
+    <tr><td>notifications</td><td>Fluent Bit</td><td>log</td><td>Fixed Window</td><td>2K/min</td><td>drop</td></tr>
+    <tr><td><em>all others</em></td><td><em>any</em></td><td><em>any</em></td><td>Fixed Window</td><td>5K/min</td><td>drop</td></tr>
+  </tbody>
+</table>
+
+<div class="callout callout-info">
+  <strong>See it live:</strong> The full Fidelity policy set is available at <code>examples/fidelity-policies.json</code> — 12 production-ready policies covering all providers and use cases.
+</div>
+</section>
+
+</div><!-- /doc-content -->
+</main>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-inner">
+    <p>&copy; 2026 RLAAS Project &middot; <a href="https://github.com/suresh-p26/RLAAS">GitHub</a></p>
+  </div>
+</footer>
+
+<!-- SCROLL-SPY -->
+<script>
+(function(){
+  const sections = document.querySelectorAll('section[id]');
+  const links = document.querySelectorAll('.doc-sidebar a');
+  function onScroll(){
+    let current = '';
+    sections.forEach(s => { if(window.scrollY >= s.offsetTop - 120) current = s.id; });
+    links.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  }
+  window.addEventListener('scroll', onScroll);
+  onScroll();
+})();
+</script>
+
+</body>
+</html>
