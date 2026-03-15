@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"rlaas/internal/store"
 	"strings"
 	"sync"

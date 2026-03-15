@@ -1,7 +1,7 @@
 package key
 
 import (
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"testing"
 )
 

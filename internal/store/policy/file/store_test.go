@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"testing"
 )
 

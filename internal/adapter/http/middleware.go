@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"strconv"
 	"strings"
 	"time"

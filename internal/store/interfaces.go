@@ -2,7 +2,7 @@ package store
 
 import (
 	"context"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"time"
 )
 

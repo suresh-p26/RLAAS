@@ -7,7 +7,7 @@ import (
 	"time"
 
 	rlaasv1 "rlaas/api/proto"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 )
 
 type leaseEvalStub struct {

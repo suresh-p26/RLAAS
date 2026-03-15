@@ -7,7 +7,7 @@ import (
 	"rlaas/internal/algorithm"
 	"rlaas/internal/engine/matcher"
 	"rlaas/internal/key"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"rlaas/internal/store"
 	cache "rlaas/internal/store/cache"
 	"time"

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	httpadapter "rlaas/internal/adapter/http"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"rlaas/internal/store/counter/memory"
 	"rlaas/pkg/rlaas"
 )

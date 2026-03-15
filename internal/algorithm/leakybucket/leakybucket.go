@@ -3,7 +3,7 @@ package leakybucket
 import (
 	"context"
 	"rlaas/internal/algorithm/common"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"rlaas/internal/store"
 	"time"
 )

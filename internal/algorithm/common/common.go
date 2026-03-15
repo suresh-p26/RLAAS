@@ -1,7 +1,7 @@
 package common
 
 import (
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"time"
 )
 

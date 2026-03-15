@@ -3,7 +3,7 @@ package oracle
 import (
 	"context"
 	"errors"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 )
 
 // Store is a placeholder for oracle policy persistence.

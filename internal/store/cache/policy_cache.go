@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"sync"
 	"time"
 )

@@ -2,7 +2,7 @@ package algorithm
 
 import (
 	"context"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 )
 
 // Evaluator executes one algorithm against a policy and request.

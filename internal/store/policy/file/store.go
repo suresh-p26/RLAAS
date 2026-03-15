@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"sync"
 	"time"
 )

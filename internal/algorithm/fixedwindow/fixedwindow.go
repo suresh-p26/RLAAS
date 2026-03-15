@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"rlaas/internal/algorithm/common"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"rlaas/internal/store"
 	"time"
 )

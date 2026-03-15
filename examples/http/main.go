@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"rlaas/internal/store/counter/memory"
 	filestore "rlaas/internal/store/policy/file"
 	"rlaas/pkg/rlaas"

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"rlaas/internal/model"
+	"rlaas/pkg/model"
 	"rlaas/internal/store/counter/memory"
 	"rlaas/pkg/rlaas"
 )
