@@ -56,7 +56,7 @@ func TestMainServerReturnsOnStartupError(t *testing.T) {
 func TestRunUsesDefaultPolicyFile(t *testing.T) {
 	os.Unsetenv("RLAAS_POLICY_FILE")
 	old, _ := os.Getwd()
-	defer os.Chdir(old)
+	defer func() { _ = os.Chdir(old) }()
 	_ = os.Chdir(filepath.Join("..", ".."))
 	called := false
 	err := run(func(s *server.HTTPServer) error {
