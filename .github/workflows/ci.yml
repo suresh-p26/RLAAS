@@ -71,7 +71,7 @@ jobs:
 
   # ── Tests + Coverage ───────────────────────────────────────
   test:
-    name: Test (coverage ≥ ${{ needs.setup.outputs.min_cov || '90' }}%)
+    name: Test (coverage ≥ 90%)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

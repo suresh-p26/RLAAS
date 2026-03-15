@@ -28,6 +28,14 @@ go.work.sum
 # env file
 .env
 
+# Build output
+bin/
+dist/
+
+# Temporary files
+test_output.txt
+coverage_functions.txt
+
 # Editor/IDE
 # .idea/
 # .vscode/

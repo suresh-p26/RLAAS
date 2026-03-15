@@ -77,7 +77,7 @@
   <h3>Go SDK (Embedded)</h3>
   <p>The Go SDK is the native library — import it and evaluate decisions locally with zero network overhead.</p>
 
-<pre><code>import "rlaas/pkg/rlaas"
+<pre><code>import "github.com/suresh-p26/RLAAS/pkg/rlaas"
 
 client := rlaas.NewClient()
 decision, err := client.Check(ctx, model.RequestContext{
@@ -150,9 +150,9 @@ summary = client.get_analytics_summary(top=5)</code></pre>
 <div class="sdk-section" id="typescript">
   <span class="sdk-lang lang-ts">TypeScript</span>
   <h3>TypeScript SDK</h3>
-  <p>Install: <code>npm install rlaas-sdk</code> (or import from <code>sdk/typescript/</code>)</p>
+  <p>Install: <code>npm install @rlaas/sdk</code> (or import from <code>sdk/typescript/</code>)</p>
 
-<pre><code>import { RlaasClient } from 'rlaas-sdk';
+<pre><code>import { RlaasClient } from '@rlaas/sdk';
 
 const client = new RlaasClient('http://localhost:8080');
 
