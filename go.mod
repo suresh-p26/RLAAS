@@ -1,10 +1,10 @@
 module rlaas
 
-go 1.24
+go 1.25
 
-toolchain go1.24.1
+toolchain go1.25.8
 
-require github.com/redis/go-redis/v9 v9.6.1
+require github.com/redis/go-redis/v9 v9.6.3
 
 require (
 	github.com/alicebob/miniredis/v2 v2.37.0
