@@ -2,10 +2,10 @@ package rlaas
 
 import (
 	"context"
+	"github.com/suresh-p26/RLAAS/internal/store/counter/memory"
+	filestore "github.com/suresh-p26/RLAAS/internal/store/policy/file"
+	"github.com/suresh-p26/RLAAS/pkg/model"
 	"path/filepath"
-	"rlaas/internal/store/counter/memory"
-	filestore "rlaas/internal/store/policy/file"
-	"rlaas/pkg/model"
 	"testing"
 )
 

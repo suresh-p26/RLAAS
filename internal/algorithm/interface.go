@@ -2,7 +2,7 @@ package algorithm
 
 import (
 	"context"
-	"rlaas/pkg/model"
+	"github.com/suresh-p26/RLAAS/pkg/model"
 )
 
 // Evaluator executes one algorithm against a policy and request.

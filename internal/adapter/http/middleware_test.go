@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/suresh-p26/RLAAS/pkg/model"
 	"net/http"
 	"net/http/httptest"
-	"rlaas/pkg/model"
 	"testing"
 	"time"
 )

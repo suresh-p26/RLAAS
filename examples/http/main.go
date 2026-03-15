@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/suresh-p26/RLAAS/internal/store/counter/memory"
+	filestore "github.com/suresh-p26/RLAAS/internal/store/policy/file"
+	"github.com/suresh-p26/RLAAS/pkg/model"
+	"github.com/suresh-p26/RLAAS/pkg/rlaas"
 	"io"
 	"os"
-	"rlaas/internal/store/counter/memory"
-	filestore "rlaas/internal/store/policy/file"
-	"rlaas/pkg/model"
-	"rlaas/pkg/rlaas"
 )
 
 // main runs a simple loop to show allow and deny decisions.

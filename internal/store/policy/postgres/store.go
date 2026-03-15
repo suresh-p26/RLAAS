@@ -3,7 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
-	"rlaas/pkg/model"
+	"github.com/suresh-p26/RLAAS/pkg/model"
 )
 
 // Store is a placeholder for postgres policy persistence.

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/suresh-p26/RLAAS/pkg/model"
 	"os"
-	"rlaas/pkg/model"
 	"sync"
 	"time"
 )

@@ -25,7 +25,7 @@ import (
 	"context"
 	"strings"
 
-	"rlaas/pkg/provider"
+	"github.com/suresh-p26/RLAAS/pkg/provider"
 )
 
 // Descriptor represents an Envoy rate limit descriptor entry.

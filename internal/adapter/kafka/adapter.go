@@ -16,7 +16,7 @@ import (
 	"context"
 	"time"
 
-	"rlaas/pkg/provider"
+	"github.com/suresh-p26/RLAAS/pkg/provider"
 )
 
 // Message represents a Kafka message for rate limit evaluation.

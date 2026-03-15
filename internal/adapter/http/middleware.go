@@ -3,8 +3,8 @@ package httpadapter
 import (
 	"context"
 	"encoding/json"
+	"github.com/suresh-p26/RLAAS/pkg/model"
 	"net/http"
-	"rlaas/pkg/model"
 	"strconv"
 	"strings"
 	"time"

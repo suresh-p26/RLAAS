@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/suresh-p26/RLAAS/internal/store/counter/memory"
+	filestore "github.com/suresh-p26/RLAAS/internal/store/policy/file"
+	"github.com/suresh-p26/RLAAS/pkg/model"
+	"github.com/suresh-p26/RLAAS/pkg/rlaas"
 	"net/http"
 	"net/http/httptest"
-	"rlaas/internal/store/counter/memory"
-	filestore "rlaas/internal/store/policy/file"
-	"rlaas/pkg/model"
-	"rlaas/pkg/rlaas"
 	"testing"
 )
 

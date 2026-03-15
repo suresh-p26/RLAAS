@@ -3,12 +3,12 @@ package evaluator
 import (
 	"context"
 	"errors"
-	"rlaas/internal/algorithm"
-	"rlaas/internal/engine/matcher"
-	"rlaas/internal/key"
-	"rlaas/internal/store"
-	cache "rlaas/internal/store/cache"
-	"rlaas/pkg/model"
+	"github.com/suresh-p26/RLAAS/internal/algorithm"
+	"github.com/suresh-p26/RLAAS/internal/engine/matcher"
+	"github.com/suresh-p26/RLAAS/internal/key"
+	"github.com/suresh-p26/RLAAS/internal/store"
+	cache "github.com/suresh-p26/RLAAS/internal/store/cache"
+	"github.com/suresh-p26/RLAAS/pkg/model"
 	"testing"
 	"time"
 )

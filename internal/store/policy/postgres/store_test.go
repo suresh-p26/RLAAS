@@ -2,7 +2,7 @@ package postgres
 
 import (
 	"context"
-	"rlaas/pkg/model"
+	"github.com/suresh-p26/RLAAS/pkg/model"
 	"testing"
 )
 

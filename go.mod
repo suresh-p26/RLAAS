@@ -1,4 +1,4 @@
-module rlaas
+module github.com/suresh-p26/RLAAS
 
 go 1.25
 

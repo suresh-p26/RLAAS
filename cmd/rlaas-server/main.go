@@ -6,29 +6,33 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
-	rlaasv1 "rlaas/api/proto"
-	grpcadapter "rlaas/internal/adapter/grpc"
-	httpadapter "rlaas/internal/adapter/http"
-	"rlaas/internal/analytics"
-	"rlaas/internal/controlplane/invalidation"
-	"rlaas/internal/server"
-	"rlaas/internal/store/counter/memory"
-	filestore "rlaas/internal/store/policy/file"
-	"rlaas/pkg/rlaas"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
+
+	rlaasv1 "github.com/suresh-p26/RLAAS/api/proto"
+	grpcadapter "github.com/suresh-p26/RLAAS/internal/adapter/grpc"
+	httpadapter "github.com/suresh-p26/RLAAS/internal/adapter/http"
+	"github.com/suresh-p26/RLAAS/internal/analytics"
+	"github.com/suresh-p26/RLAAS/internal/controlplane/invalidation"
+	"github.com/suresh-p26/RLAAS/internal/server"
+	"github.com/suresh-p26/RLAAS/internal/store/counter/memory"
+	filestore "github.com/suresh-p26/RLAAS/internal/store/policy/file"
+	"github.com/suresh-p26/RLAAS/pkg/rlaas"
 
 	"google.golang.org/grpc"
 )
 
 // main starts a local HTTP server with file policies and memory counters.
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
 	if err := runAll(defaultListen, defaultGRPCListen); err != nil {
-		log.Printf("rlaas-server startup failed: %v", err)
+		slog.Error("rlaas-server startup failed", "error", err)
 		return
 	}
 }
@@ -129,7 +133,27 @@ func copyEvent(event map[string]string) map[string]string {
 }
 
 func defaultListen(s *server.HTTPServer) error {
-	return s.ListenAndServe()
+	// Start HTTP in a goroutine so we can wait for shutdown signals.
+	errCh := make(chan error, 1)
+	go func() { errCh <- s.ListenAndServe() }()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case err := <-errCh:
+		// Server failed to start or stopped unexpectedly.
+		return err
+	case sig := <-quit:
+		slog.Info("shutting down", "signal", sig.String())
+	}
+
+	if err := s.Shutdown(10 * time.Second); err != nil {
+		slog.Error("http shutdown error", "error", err)
+		return err
+	}
+	slog.Info("server stopped gracefully")
+	return nil
 }
 
 func defaultGRPCListen(s *server.GRPCServer) error {
@@ -138,7 +162,7 @@ func defaultGRPCListen(s *server.GRPCServer) error {
 	}
 	go func() {
 		if err := s.ListenAndServe(); err != nil {
-			log.Printf("rlaas grpc server stopped: %v", err)
+			slog.Error("grpc server stopped", "error", err)
 		}
 	}()
 	return nil

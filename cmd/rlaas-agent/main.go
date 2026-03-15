@@ -6,13 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -56,8 +58,9 @@ func (s *syncState) snapshot() map[string]any {
 
 // main starts the sidecar scaffold with local proxy and sync loop foundations.
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
 	if err := run(defaultListen, startSyncLoop); err != nil {
-		log.Printf("rlaas-agent startup failed: %v", err)
+		slog.Error("rlaas-agent startup failed", "error", err)
 	}
 }
 
@@ -183,7 +186,7 @@ func startSyncLoop(ctx context.Context, cfg agentConfig, client *http.Client, st
 			}
 		drained:
 			fetchPolicySnapshot(ctx, cfg, client, state)
-			log.Printf("rlaas-agent processed invalidation for policy %s", policyID)
+			slog.Info("processed invalidation", "policy_id", policyID)
 		case <-ticker.C:
 			fetchPolicySnapshot(ctx, cfg, client, state)
 		}
@@ -211,6 +214,28 @@ func fetchPolicySnapshot(ctx context.Context, cfg agentConfig, client *http.Clie
 }
 
 func defaultListen(s *http.Server) error {
-	log.Printf("rlaas-agent sidecar listening on %s (upstream sync enabled)", s.Addr)
-	return s.ListenAndServe()
+	errCh := make(chan error, 1)
+	go func() {
+		slog.Info("rlaas-agent sidecar listening", "addr", s.Addr)
+		errCh <- s.ListenAndServe()
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case err := <-errCh:
+		return err
+	case sig := <-quit:
+		slog.Info("shutting down agent", "signal", sig.String())
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := s.Shutdown(ctx); err != nil {
+		slog.Error("agent shutdown error", "error", err)
+		return err
+	}
+	slog.Info("agent stopped gracefully")
+	return nil
 }

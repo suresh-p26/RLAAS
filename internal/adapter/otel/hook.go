@@ -2,7 +2,7 @@ package otel
 
 import (
 	"context"
-	"rlaas/pkg/model"
+	"github.com/suresh-p26/RLAAS/pkg/model"
 )
 
 // Evaluator is the minimal contract needed by OTEL hooks.

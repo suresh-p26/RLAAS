@@ -3,7 +3,7 @@ package otel
 import (
 	"context"
 	"errors"
-	"rlaas/pkg/model"
+	"github.com/suresh-p26/RLAAS/pkg/model"
 	"testing"
 )
 

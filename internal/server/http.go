@@ -1,14 +1,17 @@
 package server
 
 import (
-	"log"
+	"context"
+	"log/slog"
 	"net/http"
+	"time"
 )
 
 // HTTPServer contains address and mux for the HTTP transport layer.
 type HTTPServer struct {
-	Addr string
-	Mux  *http.ServeMux
+	Addr   string
+	Mux    *http.ServeMux
+	server *http.Server
 }
 
 // NewHTTPServer registers service endpoints.
@@ -23,6 +26,17 @@ func NewHTTPServer(addr string, checkHandler http.Handler) *HTTPServer {
 
 // ListenAndServe starts the HTTP server.
 func (s *HTTPServer) ListenAndServe() error {
-	log.Printf("rlaas http server listening on %s", s.Addr)
-	return http.ListenAndServe(s.Addr, s.Mux)
+	s.server = &http.Server{Addr: s.Addr, Handler: s.Mux}
+	slog.Info("http server listening", "addr", s.Addr)
+	return s.server.ListenAndServe()
+}
+
+// Shutdown gracefully drains in-flight requests.
+func (s *HTTPServer) Shutdown(timeout time.Duration) error {
+	if s.server == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return s.server.Shutdown(ctx)
 }

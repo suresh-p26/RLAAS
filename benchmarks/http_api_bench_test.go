@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	httpadapter "rlaas/internal/adapter/http"
-	"rlaas/internal/store/counter/memory"
-	"rlaas/pkg/model"
-	"rlaas/pkg/rlaas"
+	httpadapter "github.com/suresh-p26/RLAAS/internal/adapter/http"
+	"github.com/suresh-p26/RLAAS/internal/store/counter/memory"
+	"github.com/suresh-p26/RLAAS/pkg/model"
+	"github.com/suresh-p26/RLAAS/pkg/rlaas"
 )
 
 type benchmarkPolicyStore struct {

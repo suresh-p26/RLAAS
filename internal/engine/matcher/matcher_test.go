@@ -1,7 +1,7 @@
 package matcher
 
 import (
-	"rlaas/pkg/model"
+	"github.com/suresh-p26/RLAAS/pkg/model"
 	"testing"
 )
 

@@ -16,7 +16,7 @@ import (
 	"context"
 	"time"
 
-	"rlaas/pkg/provider"
+	"github.com/suresh-p26/RLAAS/pkg/provider"
 )
 
 // Record represents a single Fluent Bit log record.

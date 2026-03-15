@@ -2,10 +2,10 @@ package tokenbucket
 
 import (
 	"context"
+	"github.com/suresh-p26/RLAAS/internal/algorithm/common"
+	"github.com/suresh-p26/RLAAS/internal/store"
+	"github.com/suresh-p26/RLAAS/pkg/model"
 	"math"
-	"rlaas/internal/algorithm/common"
-	"rlaas/internal/store"
-	"rlaas/pkg/model"
 	"time"
 )
 

@@ -1,7 +1,7 @@
 package server
 
 import (
-	"log"
+	"log/slog"
 	"net"
 
 	"google.golang.org/grpc"
@@ -24,6 +24,13 @@ func (s *GRPCServer) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("rlaas grpc server listening on %s", s.Addr)
+	slog.Info("grpc server listening", "addr", s.Addr)
 	return s.Server.Serve(ln)
+}
+
+// GracefulStop stops the gRPC server gracefully, finishing in-flight RPCs.
+func (s *GRPCServer) GracefulStop() {
+	if s.Server != nil {
+		s.Server.GracefulStop()
+	}
 }

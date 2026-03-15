@@ -6,8 +6,8 @@ import (
 	"sync"
 	"testing"
 
-	"rlaas/pkg/model"
-	"rlaas/pkg/provider"
+	"github.com/suresh-p26/RLAAS/pkg/model"
+	"github.com/suresh-p26/RLAAS/pkg/provider"
 )
 
 type processorEvalStub struct {

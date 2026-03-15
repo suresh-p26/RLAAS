@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"rlaas/internal/server"
+	"github.com/suresh-p26/RLAAS/internal/server"
 )
 
 func TestRunBuildsServer(t *testing.T) {
