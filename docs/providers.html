@@ -90,7 +90,7 @@
 <!-- Provider SPI -->
 <section id="spi">
 <h2>Provider SPI</h2>
-<p>The Service Provider Interface lives in <code>internal/provider/</code> and defines three core types:</p>
+<p>The Service Provider Interface lives in <code>pkg/provider/</code> and defines three core types:</p>
 
 <h3>TelemetryRecord</h3>
 <p>The universal input format. Any provider converts its native signals into this struct:</p>
@@ -137,7 +137,7 @@ decisions := bp.Process(ctx, records)</code></pre>
 <p>The OTEL adapter processes log and span batches with concurrent workers. It's the original adapter and implements both the legacy API and the Provider SPI.</p>
 
 <h3>Usage — Direct Processor</h3>
-<pre><code>import "rlaas/internal/adapter/otel"
+<pre><code>import "github.com/suresh-p26/RLAAS/internal/adapter/otel"
 
 proc := otel.NewProcessor(rlaasClient, 4, true) // 4 workers, fail-open
 keptLogs := proc.ProcessLogs(ctx, logs)
@@ -149,8 +149,8 @@ stats := proc.Stats() // {Allowed: 9500, Dropped: 500, Errors: 0}</code></pre>
 registry.Register(adapter) // registers as "otel"
 
 decisions, _ := adapter.ProcessBatch(ctx, []provider.TelemetryRecord{
-    {Signal: provider.SignalLog, OrgID: "fidelity", Service: "payments", Severity: "INFO"},
-    {Signal: provider.SignalSpan, OrgID: "fidelity", Service: "trading", Operation: "execute_trade"},
+  {Signal: provider.SignalLog, OrgID: "northwind", Service: "payments", Severity: "INFO"},
+  {Signal: provider.SignalSpan, OrgID: "northwind", Service: "trading", Operation: "execute_trade"},
 })</code></pre>
 
 <h3>Collector Pipeline Integration</h3>
@@ -168,7 +168,7 @@ processors:
     policy_file: /etc/rlaas/policies.json
     workers: 4
     fail_open: true
-    org_id: "fidelity"
+    org_id: "northwind"
     service_attribute: "service.name"
 
 exporters:
@@ -199,9 +199,9 @@ service:
 <p>The Datadog adapter converts Datadog-native <code>LogEntry</code> and <code>MetricSample</code> records into RLAAS evaluations. Datadog tag format (<code>key:value</code>) is automatically parsed.</p>
 
 <h3>Filter Logs</h3>
-<pre><code>import "rlaas/internal/adapter/datadog"
+<pre><code>import "github.com/suresh-p26/RLAAS/internal/adapter/datadog"
 
-adapter := datadog.NewAdapter(rlaasClient, "fidelity", 4, true)
+adapter := datadog.NewAdapter(rlaasClient, "northwind", 4, true)
 
 logs := []datadog.LogEntry{
     {Service: "payments", Status: "info", Tags: []string{"env:prod", "team:pay"}},
@@ -235,9 +235,9 @@ kept := adapter.FilterMetrics(ctx, metrics)
 <p>The Fluent Bit adapter handles the standard Fluent Bit record format: a routing tag plus key-value field map. Service name resolution falls back from field to tag automatically.</p>
 
 <h3>Usage</h3>
-<pre><code>import "rlaas/internal/adapter/fluentbit"
+<pre><code>import "github.com/suresh-p26/RLAAS/internal/adapter/fluentbit"
 
-adapter := fluentbit.NewAdapter(rlaasClient, "fidelity", 4, true)
+adapter := fluentbit.NewAdapter(rlaasClient, "northwind", 4, true)
 // Optionally customize field mapping:
 adapter.ServiceField = "kubernetes.container_name"
 adapter.SeverityField = "log_level"
@@ -283,9 +283,9 @@ kept := adapter.FilterRecords(ctx, records)</code></pre>
 <p>The Envoy adapter supports two integration modes: Envoy's native rate limit service protocol (gRPC descriptors) and the ext_authz external authorization check.</p>
 
 <h3>Rate Limit Service</h3>
-<pre><code>import "rlaas/internal/adapter/envoy"
+<pre><code>import "github.com/suresh-p26/RLAAS/internal/adapter/envoy"
 
-adapter := envoy.NewAdapter(rlaasClient, "fidelity", 4, true)
+adapter := envoy.NewAdapter(rlaasClient, "northwind", 4, true)
 
 // Envoy sends descriptors like:
 // [{"entries": [{"key": "service", "value": "risk-api"}, {"key": "path", "value": "/v1/risk/assess"}]}]
@@ -296,7 +296,7 @@ descriptors := []envoy.Descriptor{
         {Key: "method", Value: "POST"},
     }},
 }
-response := adapter.CheckRateLimit(ctx, "fidelity", descriptors)
+response := adapter.CheckRateLimit(ctx, "northwind", descriptors)
 // response.OverallCode == RateLimitOK or RateLimitOverLimit</code></pre>
 
 <h3>ext_authz Mode</h3>
@@ -315,7 +315,7 @@ http_filters:
   - name: envoy.filters.http.ratelimit
     typed_config:
       "@type": type.googleapis.com/envoy.extensions.filters.http.ratelimit.v3.RateLimit
-      domain: fidelity
+      domain: northwind
       rate_limit_service:
         grpc_service:
           envoy_grpc:
@@ -349,9 +349,9 @@ clusters:
 <p>The Kafka adapter enforces per-topic, per-consumer-group rate limits on event streams. Use it as a consumer interceptor to protect downstream systems from burst traffic.</p>
 
 <h3>Usage</h3>
-<pre><code>import "rlaas/internal/adapter/kafka"
+<pre><code>import "github.com/suresh-p26/RLAAS/internal/adapter/kafka"
 
-adapter := kafka.NewAdapter(rlaasClient, "fidelity", 4, true)
+adapter := kafka.NewAdapter(rlaasClient, "northwind", 4, true)
 
 messages := []kafka.Message{
     {Topic: "orders.placed", Service: "order-service", Key: "o-123",
@@ -376,7 +376,7 @@ kept := adapter.FilterMessages(ctx, messages)
 
 import (
     "context"
-    "rlaas/internal/provider"
+    "github.com/suresh-p26/RLAAS/pkg/provider"
 )
 
 // MyRecord is your provider's native format.
@@ -435,7 +435,7 @@ var _ provider.Adapter = (*Adapter)(nil)</code></pre>
 <h2>Provider Registry</h2>
 <p>The registry is a thread-safe store for dynamic adapter lookup at runtime:</p>
 
-<pre><code>import "rlaas/internal/provider"
+<pre><code>import "github.com/suresh-p26/RLAAS/pkg/provider"
 
 // Register adapters at startup
 registry := provider.NewRegistry()
@@ -458,11 +458,11 @@ names := registry.List() // ["otel", "datadog", "envoy", "kafka"]</code></pre>
 
 <!-- Enterprise Example -->
 <section id="enterprise">
-<h2>Enterprise Example: Fidelity</h2>
-<p>Here's how a Fidelity-class enterprise would deploy RLAAS across multiple providers with per-service policies:</p>
+<h2>Enterprise Example: Northwind</h2>
+<p>Here's how a Northwind-class enterprise would deploy RLAAS across multiple providers with per-service policies:</p>
 
 <pre class="arch-diagram">┌─────────────────────────────────────────────────────────────────┐
-│ Fidelity Microservices                                          │
+│ Northwind Microservices                                         │
 │  payments │ auth │ trading │ market-data │ risk-api │ orders    │
 └─────┬──────┬──────┬──────────┬────────────┬──────────┬──────────┘
       │OTLP  │OTLP  │DD Logs   │DD Metrics  │HTTP      │Kafka
@@ -508,7 +508,7 @@ names := registry.List() // ["otel", "datadog", "envoy", "kafka"]</code></pre>
 </table>
 
 <div class="callout callout-info">
-  <strong>See it live:</strong> The full Fidelity policy set is available at <code>examples/fidelity-policies.json</code> — 12 production-ready policies covering all providers and use cases.
+  <strong>See it live:</strong> The full Northwind policy set is available at <code>examples/northwind-policies.json</code> — 12 production-ready policies covering all providers and use cases.
 </div>
 </section>
 
