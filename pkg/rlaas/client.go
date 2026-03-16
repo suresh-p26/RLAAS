@@ -2,6 +2,8 @@ package rlaas
 
 import (
 	"context"
+	"time"
+
 	"github.com/suresh-p26/RLAAS/internal/algorithm"
 	"github.com/suresh-p26/RLAAS/internal/algorithm/concurrency"
 	"github.com/suresh-p26/RLAAS/internal/algorithm/fixedwindow"
@@ -15,8 +17,9 @@ import (
 	"github.com/suresh-p26/RLAAS/internal/key"
 	"github.com/suresh-p26/RLAAS/internal/store"
 	cache "github.com/suresh-p26/RLAAS/internal/store/cache"
+	memory "github.com/suresh-p26/RLAAS/internal/store/counter/memory"
+	file "github.com/suresh-p26/RLAAS/internal/store/policy/file"
 	"github.com/suresh-p26/RLAAS/pkg/model"
-	"time"
 )
 
 // Evaluator is the public interface exposed by the SDK client.
@@ -83,4 +86,22 @@ func (c *Client) StartConcurrencyLease(ctx context.Context, req model.RequestCon
 		req.Timestamp = time.Now()
 	}
 	return c.engine.StartConcurrencyLease(ctx, req)
+}
+
+// NewFromPolicyFile creates a Client with an in-memory counter store and a
+// file-based policy store loaded from policyPath. This is the simplest way to
+// integrate RLAAS from an external module without importing internal packages.
+func NewFromPolicyFile(policyPath string) *Client {
+	return NewWithConfig(policyPath, "", 30*time.Second)
+}
+
+// NewWithConfig creates a Client with in-memory counters, a file-based policy
+// store, and custom key prefix and cache TTL settings.
+func NewWithConfig(policyPath, keyPrefix string, cacheTTL time.Duration) *Client {
+	return New(Options{
+		PolicyStore:  file.New(policyPath),
+		CounterStore: memory.New(),
+		CacheTTL:     cacheTTL,
+		KeyPrefix:    keyPrefix,
+	})
 }
