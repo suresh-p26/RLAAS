@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/suresh-p26/RLAAS/internal/store/counter/memory"
+	"github.com/rlaas-io/rlaas/internal/store/counter/memory"
 )
 
 func BenchmarkMemoryStoreIncrement(b *testing.B) {

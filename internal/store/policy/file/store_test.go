@@ -3,7 +3,7 @@ package file
 import (
 	"context"
 	"fmt"
-	"github.com/suresh-p26/RLAAS/pkg/model"
+	"github.com/rlaas-io/rlaas/pkg/model"
 	"os"
 	"path/filepath"
 	"testing"

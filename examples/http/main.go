@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/suresh-p26/RLAAS/internal/store/counter/memory"
-	filestore "github.com/suresh-p26/RLAAS/internal/store/policy/file"
-	"github.com/suresh-p26/RLAAS/pkg/model"
-	"github.com/suresh-p26/RLAAS/pkg/rlaas"
+	"github.com/rlaas-io/rlaas/internal/store/counter/memory"
+	filestore "github.com/rlaas-io/rlaas/internal/store/policy/file"
+	"github.com/rlaas-io/rlaas/pkg/model"
+	"github.com/rlaas-io/rlaas/pkg/rlaas"
 	"io"
 	"os"
 )
