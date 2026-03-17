@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package rlaas.v1;
 
-option go_package = "github.com/suresh-p26/RLAAS/api/proto;rlaasv1";
+option go_package = "github.com/rlaas-io/rlaas/api/proto;rlaasv1";
 
 service RateLimitService {
   rpc CheckLimit(CheckLimitRequest) returns (CheckLimitResponse);

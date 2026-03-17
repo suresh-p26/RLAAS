@@ -1,11 +1,11 @@
 # Rate Limiting As A Service (RLAAS)
 
-[![CI](https://github.com/suresh-p26/RLAAS/actions/workflows/ci.yml/badge.svg)](https://github.com/suresh-p26/RLAAS/actions/workflows/ci.yml)
+[![CI](https://github.com/rlaas-io/rlaas/actions/workflows/ci.yml/badge.svg)](https://github.com/rlaas-io/rlaas/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.25-blue.svg)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://suresh-p26.github.io/RLAAS/)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://rlaas-io.github.io/rlaas/)
 
-> **Official Documentation:** [https://suresh-p26.github.io/RLAAS/](https://suresh-p26.github.io/RLAAS/) -- features, design document, API reference, SDK guides, and getting started.
+> **Official Documentation:** [https://rlaas-io.github.io/rlaas/](https://rlaas-io.github.io/rlaas/) -- features, design document, API reference, SDK guides, and getting started.
 
 RLAAS (Rate Limiting as a Service) is a policy-driven platform for enforcing limits, quotas, and traffic control across APIs and service workloads.
 

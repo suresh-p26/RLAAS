@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/suresh-p26/RLAAS/internal/store/counter/memory"
-	"github.com/suresh-p26/RLAAS/pkg/model"
-	"github.com/suresh-p26/RLAAS/pkg/rlaas"
+	"github.com/rlaas-io/rlaas/internal/store/counter/memory"
+	"github.com/rlaas-io/rlaas/pkg/model"
+	"github.com/rlaas-io/rlaas/pkg/rlaas"
 )
 
 type staticPolicyStore struct {

@@ -3,9 +3,9 @@ package slidingcounter
 import (
 	"context"
 	"errors"
-	"github.com/suresh-p26/RLAAS/internal/store"
-	"github.com/suresh-p26/RLAAS/internal/store/counter/memory"
-	"github.com/suresh-p26/RLAAS/pkg/model"
+	"github.com/rlaas-io/rlaas/internal/store"
+	"github.com/rlaas-io/rlaas/internal/store/counter/memory"
+	"github.com/rlaas-io/rlaas/pkg/model"
 	"testing"
 	"time"
 )
