@@ -3,12 +3,12 @@ package evaluator
 import (
 	"context"
 	"fmt"
-	"github.com/suresh-p26/RLAAS/internal/algorithm"
-	"github.com/suresh-p26/RLAAS/internal/engine/matcher"
-	"github.com/suresh-p26/RLAAS/internal/key"
-	"github.com/suresh-p26/RLAAS/internal/store"
-	cache "github.com/suresh-p26/RLAAS/internal/store/cache"
-	"github.com/suresh-p26/RLAAS/pkg/model"
+	"github.com/rlaas-io/rlaas/internal/algorithm"
+	"github.com/rlaas-io/rlaas/internal/engine/matcher"
+	"github.com/rlaas-io/rlaas/internal/key"
+	"github.com/rlaas-io/rlaas/internal/store"
+	cache "github.com/rlaas-io/rlaas/internal/store/cache"
+	"github.com/rlaas-io/rlaas/pkg/model"
 	"hash/fnv"
 	"time"
 )

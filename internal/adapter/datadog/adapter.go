@@ -14,8 +14,8 @@ package datadog
 import (
 	"context"
 
-	"github.com/suresh-p26/RLAAS/pkg/model"
-	"github.com/suresh-p26/RLAAS/pkg/provider"
+	"github.com/rlaas-io/rlaas/pkg/model"
+	"github.com/rlaas-io/rlaas/pkg/provider"
 )
 
 // LogEntry represents a Datadog-style log record.

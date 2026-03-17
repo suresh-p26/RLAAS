@@ -3,7 +3,7 @@ package grpcadapter
 import (
 	"context"
 	"errors"
-	"github.com/suresh-p26/RLAAS/pkg/model"
+	"github.com/rlaas-io/rlaas/pkg/model"
 	"testing"
 
 	"google.golang.org/grpc"

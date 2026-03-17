@@ -57,8 +57,8 @@ changelog:
 
 dockers:
   - image_templates:
-      - "ghcr.io/suresh-p26/rlaas:{{ .Tag }}"
-      - "ghcr.io/suresh-p26/rlaas:latest"
+      - "ghcr.io/rlaas-io/rlaas:{{ .Tag }}"
+      - "ghcr.io/rlaas-io/rlaas:latest"
     dockerfile: Dockerfile
     build_flag_templates:
       - "--label=org.opencontainers.image.title={{ .ProjectName }}"

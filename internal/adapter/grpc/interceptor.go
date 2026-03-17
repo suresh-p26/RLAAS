@@ -2,7 +2,7 @@ package grpcadapter
 
 import (
 	"context"
-	"github.com/suresh-p26/RLAAS/pkg/model"
+	"github.com/rlaas-io/rlaas/pkg/model"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

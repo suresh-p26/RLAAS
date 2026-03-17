@@ -3,9 +3,9 @@ package slidingcounter
 import (
 	"context"
 	"fmt"
-	"github.com/suresh-p26/RLAAS/internal/algorithm/common"
-	"github.com/suresh-p26/RLAAS/internal/store"
-	"github.com/suresh-p26/RLAAS/pkg/model"
+	"github.com/rlaas-io/rlaas/internal/algorithm/common"
+	"github.com/rlaas-io/rlaas/internal/store"
+	"github.com/rlaas-io/rlaas/pkg/model"
 	"time"
 )
 

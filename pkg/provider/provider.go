@@ -19,7 +19,7 @@ package provider
 
 import (
 	"context"
-	"github.com/suresh-p26/RLAAS/pkg/model"
+	"github.com/rlaas-io/rlaas/pkg/model"
 	"sync"
 )
 
