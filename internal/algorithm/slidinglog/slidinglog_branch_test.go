@@ -19,7 +19,9 @@ func (swlCountErrStore) CountAfter(context.Context, string, time.Time) (int64, e
 
 type swlTrimErrStore struct{ store.CounterStore }
 
-func (swlTrimErrStore) TrimBefore(context.Context, string, time.Time) error { return errors.New("trim failed") }
+func (swlTrimErrStore) TrimBefore(context.Context, string, time.Time) error {
+	return errors.New("trim failed")
+}
 
 func TestSlidingLog_CountErrorPath(t *testing.T) {
 	e := New(swlCountErrStore{})
