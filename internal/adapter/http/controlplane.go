@@ -2,14 +2,17 @@ package httpadapter
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/rlaas-io/rlaas/internal/store"
-	"github.com/rlaas-io/rlaas/pkg/model"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rlaas-io/rlaas/internal/store"
+	"github.com/rlaas-io/rlaas/pkg/model"
 )
 
 // LeaseEvaluator extends evaluate with acquire and release workflow support.
@@ -18,24 +21,31 @@ type LeaseEvaluator interface {
 	StartConcurrencyLease(ctx context.Context, req model.RequestContext) (model.Decision, func() error, error)
 }
 
+// policyHistoryStore is an optional interface that policy stores may
+// implement to support audit trail and version history queries.
 type policyHistoryStore interface {
 	ListPolicyAudit(ctx context.Context, policyID string) ([]model.PolicyAuditEntry, error)
 	ListPolicyVersions(ctx context.Context, policyID string) ([]model.PolicyVersion, error)
 }
 
+// invalidationNotifier publishes policy change events to a broker.
 type invalidationNotifier interface {
 	Publish(ctx context.Context, topic string, event map[string]string) error
 }
 
+// analyticsRecorder captures usage events for the analytics summary.
 type analyticsRecorder interface {
 	Record(ctx context.Context, event string, tags map[string]string)
 }
 
+// policiesHandlerConfig wires optional invalidation and analytics hooks
+// into the policies HTTP handler.
 type policiesHandlerConfig struct {
 	notifier  invalidationNotifier
 	analytics analyticsRecorder
 }
 
+// acquireResponse is the JSON body returned by the acquire endpoint.
 type acquireResponse struct {
 	Allowed bool             `json:"allowed"`
 	LeaseID string           `json:"lease_id,omitempty"`
@@ -43,32 +53,41 @@ type acquireResponse struct {
 	Action  model.ActionType `json:"action"`
 }
 
+// releaseRequest is the JSON body sent to the release endpoint.
 type releaseRequest struct {
 	LeaseID string `json:"lease_id"`
 }
 
+// releaseResponse is the JSON body returned by the release endpoint.
 type releaseResponse struct {
 	Released bool   `json:"released"`
 	Reason   string `json:"reason,omitempty"`
 }
 
+// leaseRegistry tracks in-flight concurrency leases by ID so that
+// release calls can find the corresponding callback.
 type leaseRegistry struct {
 	mu    sync.Mutex
 	items map[string]func() error
 }
 
+// newLeaseRegistry creates an empty lease registry.
 func newLeaseRegistry() *leaseRegistry {
 	return &leaseRegistry{items: map[string]func() error{}}
 }
 
+// put stores a release callback and returns a unique lease ID.
 func (r *leaseRegistry) put(fn func() error) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	id := fmt.Sprintf("lease-%d", time.Now().UnixNano())
+	b := make([]byte, 16)
+	_, _ = cryptorand.Read(b)
+	id := "lease-" + hex.EncodeToString(b)
 	r.items[id] = fn
 	return id
 }
 
+// pop removes and returns the release callback for the given lease ID.
 func (r *leaseRegistry) pop(id string) (func() error, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -435,6 +454,7 @@ func PoliciesHandlerWithConfig(ps store.PolicyStore, cfg policiesHandlerConfig) 
 	})
 }
 
+// validatePolicy checks that required fields are set and within bounds.
 func validatePolicy(p model.Policy) error {
 	if p.Name == "" {
 		return fmt.Errorf("policy name is required")
@@ -454,6 +474,8 @@ func validatePolicy(p model.Policy) error {
 	return nil
 }
 
+// selectVersionForRollback finds the target version for a rollback.
+// When requestedVersion is zero the second-to-last version is returned.
 func selectVersionForRollback(versions []model.PolicyVersion, requestedVersion int64) (model.PolicyVersion, bool) {
 	if len(versions) == 0 {
 		return model.PolicyVersion{}, false

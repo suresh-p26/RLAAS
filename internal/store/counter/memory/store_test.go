@@ -100,3 +100,42 @@ func TestMemoryStoreConcurrentIncrement(t *testing.T) {
 		t.Fatalf("unexpected concurrent increment value: %d", v)
 	}
 }
+
+func TestMemoryStoreCheckAndAddTimestamps(t *testing.T) {
+	s := New()
+	now := time.Now()
+	count, allowed, err := s.CheckAndAddTimestamps(context.Background(), "ts", now.Add(-time.Minute), 2, 1, now, time.Minute)
+	if err != nil || !allowed || count != 0 {
+		t.Fatalf("first add should succeed: count=%d allowed=%v err=%v", count, allowed, err)
+	}
+	count, allowed, err = s.CheckAndAddTimestamps(context.Background(), "ts", now.Add(-time.Minute), 2, 1, now, time.Minute)
+	if err != nil || !allowed || count != 1 {
+		t.Fatalf("second add should succeed: count=%d allowed=%v err=%v", count, allowed, err)
+	}
+	count, allowed, err = s.CheckAndAddTimestamps(context.Background(), "ts", now.Add(-time.Minute), 2, 1, now, time.Minute)
+	if err != nil || allowed || count != 2 {
+		t.Fatalf("third add should be denied: count=%d allowed=%v err=%v", count, allowed, err)
+	}
+}
+
+func TestMemoryStoreBackgroundGC(t *testing.T) {
+	s := NewWithGC(2 * time.Millisecond)
+	defer s.Stop()
+
+	_ = s.Set(context.Background(), "exp", 1, 1*time.Millisecond)
+	_, _, _ = s.AcquireLease(context.Background(), "lexp", 1, 1*time.Millisecond)
+	_ = s.AddTimestamp(context.Background(), "ts-exp", time.Now(), 1*time.Millisecond)
+
+	time.Sleep(15 * time.Millisecond)
+
+	if v, _ := s.Get(context.Background(), "exp"); v != 0 {
+		t.Fatalf("expired value should be swept")
+	}
+	if c, _ := s.CountAfter(context.Background(), "ts-exp", time.Now().Add(-time.Hour)); c != 0 {
+		t.Fatalf("expired timestamps should be swept")
+	}
+	ok, cur, _ := s.AcquireLease(context.Background(), "lexp", 1, time.Second)
+	if !ok || cur != 1 {
+		t.Fatalf("expired lease should be swept and re-acquirable")
+	}
+}

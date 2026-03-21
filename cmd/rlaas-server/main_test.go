@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rlaas-io/rlaas/internal/config"
 	"github.com/rlaas-io/rlaas/internal/server"
 )
 
@@ -21,7 +22,8 @@ func TestRunBuildsServer(t *testing.T) {
 	defer os.Unsetenv("RLAAS_POLICY_FILE")
 
 	called := false
-	err := run(func(s *server.HTTPServer) error {
+	cfg := config.DefaultConfig()
+	err := run(cfg, func(cfg config.Config, s *server.HTTPServer) error {
 		called = true
 		if s == nil || s.Mux == nil {
 			t.Fatalf("expected server")
@@ -36,13 +38,15 @@ func TestRunBuildsServer(t *testing.T) {
 func TestRunMissingPolicyFile(t *testing.T) {
 	_ = os.Setenv("RLAAS_POLICY_FILE", filepath.Join(t.TempDir(), "missing.json"))
 	defer os.Unsetenv("RLAAS_POLICY_FILE")
-	if err := run(func(s *server.HTTPServer) error { return nil }); err == nil || !strings.Contains(err.Error(), "policy file not found") {
+	cfg := config.DefaultConfig()
+	if err := run(cfg, func(cfg config.Config, s *server.HTTPServer) error { return nil }); err == nil || !strings.Contains(err.Error(), "policy file not found") {
 		t.Fatalf("expected missing file error")
 	}
 }
 
 func TestDefaultListenInvalid(t *testing.T) {
-	if err := defaultListen(&server.HTTPServer{Addr: ":-1", Mux: nil}); err == nil {
+	cfg := config.DefaultConfig()
+	if err := defaultListen(cfg, &server.HTTPServer{Addr: ":-1", Mux: nil}); err == nil {
 		t.Fatalf("expected default listen error")
 	}
 }
@@ -59,7 +63,8 @@ func TestRunUsesDefaultPolicyFile(t *testing.T) {
 	defer func() { _ = os.Chdir(old) }()
 	_ = os.Chdir(filepath.Join("..", ".."))
 	called := false
-	err := run(func(s *server.HTTPServer) error {
+	cfg := config.DefaultConfig()
+	err := run(cfg, func(cfg config.Config, s *server.HTTPServer) error {
 		called = true
 		return nil
 	})
@@ -72,7 +77,8 @@ func TestRunListenError(t *testing.T) {
 	path := filepath.Join("..", "..", "examples", "policies.json")
 	_ = os.Setenv("RLAAS_POLICY_FILE", path)
 	defer os.Unsetenv("RLAAS_POLICY_FILE")
-	err := run(func(s *server.HTTPServer) error { return errors.New("listen failed") })
+	cfg := config.DefaultConfig()
+	err := run(cfg, func(cfg config.Config, s *server.HTTPServer) error { return errors.New("listen failed") })
 	if err == nil || !strings.Contains(err.Error(), "listen failed") {
 		t.Fatalf("expected listen error")
 	}
@@ -82,7 +88,8 @@ func TestRunAllGRPCListenError(t *testing.T) {
 	path := filepath.Join("..", "..", "examples", "policies.json")
 	_ = os.Setenv("RLAAS_POLICY_FILE", path)
 	defer os.Unsetenv("RLAAS_POLICY_FILE")
-	err := runAll(func(s *server.HTTPServer) error { return nil }, func(s *server.GRPCServer) error { return errors.New("grpc listen failed") })
+	cfg := config.DefaultConfig()
+	err := runAll(cfg, func(cfg config.Config, s *server.HTTPServer) error { return nil }, func(cfg config.Config, s *server.GRPCServer) error { return errors.New("grpc listen failed") })
 	if err == nil || !strings.Contains(err.Error(), "grpc listen failed") {
 		t.Fatalf("expected grpc listen error")
 	}
@@ -94,10 +101,11 @@ func TestRunAllSuccess(t *testing.T) {
 	defer os.Unsetenv("RLAAS_POLICY_FILE")
 	httpCalled := false
 	grpcCalled := false
-	err := runAll(func(s *server.HTTPServer) error {
+	cfg := config.DefaultConfig()
+	err := runAll(cfg, func(cfg config.Config, s *server.HTTPServer) error {
 		httpCalled = s != nil
 		return nil
-	}, func(s *server.GRPCServer) error {
+	}, func(cfg config.Config, s *server.GRPCServer) error {
 		grpcCalled = s != nil
 		return nil
 	})
@@ -107,7 +115,8 @@ func TestRunAllSuccess(t *testing.T) {
 }
 
 func TestDefaultGRPCListenNilServer(t *testing.T) {
-	if err := defaultGRPCListen(&server.GRPCServer{Addr: ":0"}); err == nil || !strings.Contains(err.Error(), "not configured") {
+	cfg := config.DefaultConfig()
+	if err := defaultGRPCListen(cfg, &server.GRPCServer{Addr: ":0"}); err == nil || !strings.Contains(err.Error(), "not configured") {
 		t.Fatalf("expected grpc configuration error")
 	}
 }

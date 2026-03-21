@@ -80,3 +80,75 @@ func TestRedisStoreOps(t *testing.T) {
 		t.Fatalf("asInt64 conversion failed")
 	}
 }
+
+func TestRedisStorePingAndClose(t *testing.T) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis failed: %v", err)
+	}
+	defer mr.Close()
+
+	s := New(mr.Addr(), "", 0)
+	if err := s.Ping(context.Background()); err != nil {
+		t.Fatalf("ping failed: %v", err)
+	}
+	stats := s.PoolStats()
+	if stats == nil {
+		t.Fatalf("expected non-nil pool stats")
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("close failed: %v", err)
+	}
+}
+
+func TestRedisStoreCheckAndAddTimestamps(t *testing.T) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis failed: %v", err)
+	}
+	defer mr.Close()
+
+	s := New(mr.Addr(), "", 0)
+	ctx := context.Background()
+	now := time.Now()
+
+	// First add — should succeed.
+	count, allowed, err := s.CheckAndAddTimestamps(ctx, "ts-lua", now.Add(-time.Minute), 2, 1, now, time.Minute)
+	if err != nil || !allowed || count != 0 {
+		t.Fatalf("first add should succeed: count=%d allowed=%v err=%v", count, allowed, err)
+	}
+
+	// Second add — should succeed.
+	count, allowed, err = s.CheckAndAddTimestamps(ctx, "ts-lua", now.Add(-time.Minute), 2, 1, now, time.Minute)
+	if err != nil || !allowed || count != 1 {
+		t.Fatalf("second add should succeed: count=%d allowed=%v err=%v", count, allowed, err)
+	}
+
+	// Third add — should be denied.
+	count, allowed, err = s.CheckAndAddTimestamps(ctx, "ts-lua", now.Add(-time.Minute), 2, 1, now, time.Minute)
+	if err != nil || allowed || count != 2 {
+		t.Fatalf("third add should deny: count=%d allowed=%v err=%v", count, allowed, err)
+	}
+}
+
+func TestRedisStoreNewWithOptions(t *testing.T) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis failed: %v", err)
+	}
+	defer mr.Close()
+
+	s := NewWithOptions(Options{
+		Addr:         mr.Addr(),
+		PoolSize:     10,
+		MinIdleConns: 2,
+		DialTimeout:  time.Second,
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+		MaxRetries:   3,
+	})
+	if err := s.Ping(context.Background()); err != nil {
+		t.Fatalf("ping failed with full options: %v", err)
+	}
+	_ = s.Close()
+}
