@@ -1,0 +1,19 @@
+# ConfigMap for non-sensitive RLAAS configuration.
+# Sensitive values (JWT secrets, API keys, TLS certs) should be in a Secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rlaas-config
+  namespace: rlaas
+  labels:
+    app.kubernetes.io/name: rlaas
+data:
+  RLAAS_MODE: "server"
+  RLAAS_HTTP_ADDR: ":8080"
+  RLAAS_GRPC_ADDR: ":9090"
+  RLAAS_LOG_LEVEL: "info"
+  RLAAS_LOG_FORMAT: "json"
+  RLAAS_POLICY_FILE: "/etc/rlaas/policies.json"
+  RLAAS_READ_TIMEOUT: "5s"
+  RLAAS_WRITE_TIMEOUT: "10s"
+  RLAAS_MAX_BODY_BYTES: "1048576"

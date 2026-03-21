@@ -38,6 +38,8 @@ func (s staticPolicyStore) DeletePolicy(_ context.Context, _ string) error {
 func (s staticPolicyStore) ListPolicies(_ context.Context, _ map[string]string) ([]model.Policy, error) {
 	return []model.Policy{s.policy}, nil
 }
+func (staticPolicyStore) Ping(context.Context) error { return nil }
+func (staticPolicyStore) Close() error               { return nil }
 
 func BenchmarkEvaluateFixedWindow(b *testing.B) {
 	ps := &staticPolicyStore{policy: model.Policy{

@@ -1,6 +1,10 @@
 package region
 
-import "sort"
+import (
+	"sort"
+	"sync"
+	"time"
+)
 
 // RegionWeight defines one region's share weight.
 type RegionWeight struct {
@@ -65,4 +69,151 @@ func RegionalOverflow(usage map[string]int64, allocation []Allocation) map[strin
 		}
 	}
 	return out
+}
+
+// ------------------------------------------------
+// Health-aware dynamic allocator with failover
+// ------------------------------------------------
+
+// RegionHealth represents the health status of a region.
+type RegionHealth int
+
+const (
+	RegionHealthy   RegionHealth = 0
+	RegionDegraded  RegionHealth = 1
+	RegionUnhealthy RegionHealth = 2
+)
+
+// RegionStatus holds runtime health info for one region.
+type RegionStatus struct {
+	Region        string
+	Health        RegionHealth
+	LastHeartbeat time.Time
+	CurrentUsage  int64
+}
+
+// DynamicAllocator manages region allocations with health awareness,
+// automatic failover, and periodic rebalancing.
+type DynamicAllocator struct {
+	mu           sync.RWMutex
+	globalLimit  int64
+	weights      []RegionWeight
+	allocations  []Allocation
+	health       map[string]*RegionStatus
+	heartbeatTTL time.Duration
+}
+
+// NewDynamicAllocator creates a health-aware allocator.
+func NewDynamicAllocator(globalLimit int64, weights []RegionWeight, heartbeatTTL time.Duration) *DynamicAllocator {
+	if heartbeatTTL <= 0 {
+		heartbeatTTL = 30 * time.Second
+	}
+	da := &DynamicAllocator{
+		globalLimit:  globalLimit,
+		weights:      weights,
+		health:       make(map[string]*RegionStatus, len(weights)),
+		heartbeatTTL: heartbeatTTL,
+	}
+	for _, w := range weights {
+		da.health[w.Region] = &RegionStatus{
+			Region:        w.Region,
+			Health:        RegionHealthy,
+			LastHeartbeat: time.Now(),
+		}
+	}
+	da.rebalance()
+	return da
+}
+
+// Heartbeat records a health signal from a region.
+func (da *DynamicAllocator) Heartbeat(region string, usage int64) {
+	da.mu.Lock()
+	defer da.mu.Unlock()
+	if s, ok := da.health[region]; ok {
+		s.LastHeartbeat = time.Now()
+		s.CurrentUsage = usage
+		if s.Health == RegionUnhealthy {
+			s.Health = RegionHealthy
+			da.rebalanceLocked()
+		}
+	}
+}
+
+// CheckHealth marks regions without recent heartbeats as unhealthy
+// and redistributes their share to healthy regions.
+func (da *DynamicAllocator) CheckHealth() {
+	da.mu.Lock()
+	defer da.mu.Unlock()
+	now := time.Now()
+	changed := false
+	for _, s := range da.health {
+		if now.Sub(s.LastHeartbeat) > da.heartbeatTTL && s.Health != RegionUnhealthy {
+			s.Health = RegionUnhealthy
+			changed = true
+		}
+	}
+	if changed {
+		da.rebalanceLocked()
+	}
+}
+
+// Allocations returns the current allocations (thread-safe copy).
+func (da *DynamicAllocator) Allocations() []Allocation {
+	da.mu.RLock()
+	defer da.mu.RUnlock()
+	out := make([]Allocation, len(da.allocations))
+	copy(out, da.allocations)
+	return out
+}
+
+// HealthStatus returns the current health of all regions.
+func (da *DynamicAllocator) HealthStatus() []RegionStatus {
+	da.mu.RLock()
+	defer da.mu.RUnlock()
+	out := make([]RegionStatus, 0, len(da.health))
+	for _, s := range da.health {
+		out = append(out, *s)
+	}
+	return out
+}
+
+func (da *DynamicAllocator) rebalance() {
+	da.rebalanceLocked()
+}
+
+func (da *DynamicAllocator) rebalanceLocked() {
+	// Build weights for healthy regions only; unhealthy weight goes to remaining.
+	healthy := make([]RegionWeight, 0, len(da.weights))
+	for _, w := range da.weights {
+		if s, ok := da.health[w.Region]; ok && s.Health != RegionUnhealthy {
+			healthy = append(healthy, w)
+		}
+	}
+	if len(healthy) == 0 {
+		// All unhealthy — allocate evenly as a last resort.
+		da.allocations = AllocateGlobalLimit(da.globalLimit, da.weights)
+		return
+	}
+	da.allocations = AllocateGlobalLimit(da.globalLimit, healthy)
+}
+
+// DrainRegion marks a region as unhealthy and redistributes capacity.
+func (da *DynamicAllocator) DrainRegion(region string) {
+	da.mu.Lock()
+	defer da.mu.Unlock()
+	if s, ok := da.health[region]; ok {
+		s.Health = RegionUnhealthy
+		da.rebalanceLocked()
+	}
+}
+
+// RestoreRegion marks a region as healthy and rebalances.
+func (da *DynamicAllocator) RestoreRegion(region string) {
+	da.mu.Lock()
+	defer da.mu.Unlock()
+	if s, ok := da.health[region]; ok {
+		s.Health = RegionHealthy
+		s.LastHeartbeat = time.Now()
+		da.rebalanceLocked()
+	}
 }

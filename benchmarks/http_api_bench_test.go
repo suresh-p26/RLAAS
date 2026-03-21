@@ -137,6 +137,8 @@ func (s *benchmarkPolicyStore) ListPolicyVersions(_ context.Context, policyID st
 	copy(out, versions)
 	return out, nil
 }
+func (s *benchmarkPolicyStore) Ping(context.Context) error { return nil }
+func (s *benchmarkPolicyStore) Close() error               { return nil }
 
 func benchmarkClient() *rlaas.Client {
 	basePolicy := model.Policy{

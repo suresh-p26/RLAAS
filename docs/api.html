@@ -35,6 +35,8 @@
 <aside class="sidebar">
   <h4>Endpoints</h4>
   <ul>
+    <li><a href="#auth">Authentication</a></li>
+    <li><a href="#operational">Operational</a></li>
     <li><a href="#decision">Decision APIs</a></li>
     <li><a href="#policies">Policy CRUD</a></li>
     <li><a href="#lifecycle">Lifecycle APIs</a></li>
@@ -57,6 +59,44 @@
 
 <h1>API Reference</h1>
 <p class="text-muted" style="margin-bottom:2.5rem;">Base URL: <code>http://localhost:8080</code> (default)</p>
+
+<!-- ═══════════ AUTH ═══════════ -->
+<section id="auth">
+<h2>Authentication</h2>
+<p>When authentication is enabled (<code>RLAAS_AUTH_ENABLED=true</code>), all requests except exempt paths must include credentials.</p>
+
+<h3>API Key Mode</h3>
+<p>Set <code>RLAAS_AUTH_MODE=apikey</code> and provide keys via <code>RLAAS_AUTH_API_KEYS</code>.</p>
+<pre><code>X-Api-Key: your-secret-key</code></pre>
+<p>Alternatively, pass the key as a Bearer token:</p>
+<pre><code>Authorization: Bearer your-secret-key</code></pre>
+
+<h3>JWT Mode</h3>
+<p>Set <code>RLAAS_AUTH_MODE=jwt</code> and provide the HMAC secret via <code>RLAAS_AUTH_JWT_SECRET</code>.</p>
+<pre><code>Authorization: Bearer &lt;HS256-signed-JWT&gt;</code></pre>
+<p>Mutating endpoints (POST, PUT, DELETE) require the configured admin role claim. Read endpoints accept the read-only role.</p>
+
+<h3>Exempt Paths</h3>
+<p><code>/healthz</code> and <code>/readyz</code> are exempt by default so that Kubernetes probes work without credentials.</p>
+</section>
+
+<hr />
+
+<!-- ═══════════ OPERATIONAL ═══════════ -->
+<section id="operational">
+<h2>Operational Endpoints</h2>
+
+<h3><span class="endpoint-method method-get">GET</span> <code>/healthz</code></h3>
+<p>Liveness probe. Returns <code>200 OK</code> with body <code>ok</code> when the process is alive.</p>
+
+<h3><span class="endpoint-method method-get">GET</span> <code>/readyz</code></h3>
+<p>Readiness probe. Returns <code>200 OK</code> with body <code>ok</code> after all routes are registered and the server is ready to accept traffic. Returns <code>503 Service Unavailable</code> during startup and shutdown drain.</p>
+
+<h3><span class="endpoint-method method-get">GET</span> <code>/metrics</code></h3>
+<p>Prometheus text exposition format. Exposes counters for decisions (total, allowed, denied, shadow), latency histogram, policy cache hit/miss, counter store errors, and per-tenant/policy dimensional counters.</p>
+</section>
+
+<hr />
 
 <!-- ═══════════ DECISION ═══════════ -->
 <section id="decision">

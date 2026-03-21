@@ -111,8 +111,11 @@ type AlgorithmConfig struct {
 	LeakRate       float64       `json:"leak_rate"`
 	SubWindowCount int           `json:"sub_window_count"`
 	MaxConcurrency int64         `json:"max_concurrency"`
+	LeaseTTL       int64         `json:"lease_ttl"` // seconds; 0 = default 2 min
 	QuotaPeriod    string        `json:"quota_period"`
 	CostPerRequest int64         `json:"cost_per_request"`
+	MaxRetries     int           `json:"max_retries"` // CAS retry limit; 0 = default 5
+	SampleRate     float64       `json:"sample_rate"` // 0-1; used by ActionSample over-limit
 }
 
 // FailureMode defines how to behave when the engine cannot evaluate normally.

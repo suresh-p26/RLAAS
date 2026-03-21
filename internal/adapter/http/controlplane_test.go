@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
 	"github.com/rlaas-io/rlaas/internal/store/counter/memory"
 	filestore "github.com/rlaas-io/rlaas/internal/store/policy/file"
 	"github.com/rlaas-io/rlaas/pkg/model"
 	"github.com/rlaas-io/rlaas/pkg/rlaas"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 )
 
 func newEvalForControlplane(t *testing.T) *rlaas.Client {
@@ -68,6 +69,8 @@ func (policyStoreErr) DeletePolicy(context.Context, string) error       { return
 func (policyStoreErr) ListPolicies(context.Context, map[string]string) ([]model.Policy, error) {
 	return nil, context.Canceled
 }
+func (policyStoreErr) Ping(context.Context) error { return context.Canceled }
+func (policyStoreErr) Close() error               { return nil }
 
 func TestPoliciesHandlerCRUD(t *testing.T) {
 	store := filestore.New(t.TempDir() + "/policies.json")
