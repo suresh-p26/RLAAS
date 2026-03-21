@@ -21,14 +21,23 @@ func NewRecorder() *Recorder {
 	return &Recorder{eventCount: map[string]int64{}, tagCount: map[string]int64{}}
 }
 
+// maxAnalyticsKeys limits the number of distinct event and tag keys to
+// prevent memory exhaustion from high-cardinality analytics data.
+const maxAnalyticsKeys = 50_000
+
 // Record increments one named event counter.
 func (r *Recorder) Record(_ context.Context, event string, tags map[string]string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.eventCount[event]++
+	if _, ok := r.eventCount[event]; ok || len(r.eventCount) < maxAnalyticsKeys {
+		r.eventCount[event]++
+	}
 	r.total++
 	for k, v := range tags {
-		r.tagCount[k+"="+v]++
+		key := k + "=" + v
+		if _, ok := r.tagCount[key]; ok || len(r.tagCount) < maxAnalyticsKeys {
+			r.tagCount[key]++
+		}
 	}
 }
 

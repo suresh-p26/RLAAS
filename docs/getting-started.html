@@ -79,8 +79,15 @@ go mod tidy</code></pre>
   <div class="callout callout-info">
     <strong>Environment Variables</strong>
     <code>RLAAS_POLICY_FILE</code> — policy file path (default: <code>examples/policies.json</code>)<br/>
+    <code>RLAAS_HTTP_ADDR</code> — HTTP listen address (default: <code>:8080</code>)<br/>
     <code>RLAAS_GRPC_ADDR</code> — gRPC listen address (default: <code>:9090</code>)<br/>
-    <code>RLAAS_INVALIDATION_TARGETS</code> — comma-separated sidecar base URLs
+    <code>RLAAS_INVALIDATION_TARGETS</code> — comma-separated sidecar base URLs<br/>
+    <code>RLAAS_TLS_ENABLED</code> — set <code>true</code> to enable native TLS<br/>
+    <code>RLAAS_TLS_CERT_FILE</code> / <code>RLAAS_TLS_KEY_FILE</code> — TLS certificate and key<br/>
+    <code>RLAAS_AUTH_ENABLED</code> — set <code>true</code> to enable authentication<br/>
+    <code>RLAAS_AUTH_MODE</code> — <code>apikey</code> or <code>jwt</code><br/>
+    <code>RLAAS_AUTH_API_KEYS</code> — comma-separated API keys (for apikey mode)<br/>
+    <code>RLAAS_AUTH_JWT_SECRET</code> — HMAC secret (for jwt mode)
   </div>
 </div>
 
@@ -263,13 +270,17 @@ curl "http://localhost:8080/v1/analytics/summary?top=5"</code></pre>
 <table>
   <thead><tr><th>Item</th><th>Details</th></tr></thead>
   <tbody>
-    <tr><td>&#x2705; TLS termination</td><td>Run behind an ingress/proxy with TLS</td></tr>
-    <tr><td>&#x2705; Distributed counters</td><td>Use Redis for multi-node counter sharing</td></tr>
-    <tr><td>&#x2705; Health probes</td><td>Configure K8s liveness/readiness on <code>/healthz</code></td></tr>
+    <tr><td>&#x2705; TLS / mTLS</td><td>Set <code>RLAAS_TLS_ENABLED=true</code> with cert and key files, or run behind an ingress with TLS termination</td></tr>
+    <tr><td>&#x2705; Authentication</td><td>Set <code>RLAAS_AUTH_ENABLED=true</code> with <code>RLAAS_AUTH_MODE</code> (<code>apikey</code> or <code>jwt</code>) and matching secrets</td></tr>
+    <tr><td>&#x2705; Distributed counters</td><td>Use Redis for multi-node counter sharing (<code>RLAAS_REDIS_ADDR</code>)</td></tr>
+    <tr><td>&#x2705; Health probes</td><td>Configure K8s liveness on <code>/healthz</code> and readiness on <code>/readyz</code></td></tr>
+    <tr><td>&#x2705; Prometheus metrics</td><td>Scrape <code>/metrics</code> for decisions, latency histogram, and per-tenant/policy counters</td></tr>
+    <tr><td>&#x2705; Security headers</td><td>HSTS, X-Content-Type-Options, X-Frame-Options, CSP applied automatically</td></tr>
+    <tr><td>&#x2705; Request tracing</td><td><code>X-Request-Id</code> injected per request for end-to-end correlation</td></tr>
+    <tr><td>&#x2705; Body limits</td><td>1 MB default (<code>RLAAS_MAX_BODY_BYTES</code>) prevents OOM attacks</td></tr>
     <tr><td>&#x2705; Invalidation targets</td><td>Set <code>RLAAS_INVALIDATION_TARGETS</code> for sidecars</td></tr>
-    <tr><td>&#x2705; Monitoring</td><td>Monitor decision + analytics endpoints</td></tr>
-    <tr><td>&#x2705; Benchmark baseline</td><td>Run benchmark suite before rollout</td></tr>
     <tr><td>&#x2705; Shadow mode first</td><td>Deploy new policies in shadow mode, validate, then enforce</td></tr>
+    <tr><td>&#x2705; Benchmark baseline</td><td>Run benchmark suite before rollout</td></tr>
   </tbody>
 </table>
 

@@ -3,11 +3,21 @@ package quota
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/rlaas-io/rlaas/internal/algorithm/common"
 	"github.com/rlaas-io/rlaas/internal/store"
 	"github.com/rlaas-io/rlaas/pkg/model"
-	"time"
 )
+
+const defaultMaxCASRetries = 5
+
+func maxRetries(cfg model.AlgorithmConfig) int {
+	if cfg.MaxRetries > 0 {
+		return cfg.MaxRetries
+	}
+	return defaultMaxCASRetries
+}
 
 // Evaluator enforces long window usage budgets such as day or month quotas.
 type Evaluator struct {
@@ -21,6 +31,8 @@ func New(counter store.CounterStore) *Evaluator {
 }
 
 // Evaluate increments current period usage and checks remaining budget.
+// It uses a CAS retry loop so only allowed requests are committed, avoiding
+// over-admission under concurrent traffic.
 func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model.RequestContext, key string) (model.Decision, error) {
 	now := time.Now()
 	if e.Now != nil {
@@ -31,19 +43,35 @@ func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model
 		period = "day"
 	}
 	window := common.WindowDuration(model.AlgorithmConfig{Window: period})
-	bucketStart := now.Truncate(window)
-	bucketKey := fmt.Sprintf("%s:quota:%d", key, bucketStart.Unix())
-	consumed, err := e.Counter.Increment(ctx, bucketKey, common.Cost(req, policy.Algorithm), window)
-	if err != nil {
-		return model.Decision{}, err
-	}
+	bucketStart := common.WindowStart(now, model.AlgorithmConfig{Window: period})
+	bucketEnd := common.WindowEnd(now, model.AlgorithmConfig{Window: period})
+	bucketKey := fmt.Sprintf("%s:quota:%d", key, bucketStart.UnixNano())
 	limit := policy.Algorithm.Limit
 	if limit <= 0 {
 		limit = 1
 	}
-	remaining := limit - consumed
-	if remaining >= 0 {
-		return model.Decision{Allowed: true, Action: model.ActionAllow, Reason: "within_quota", Remaining: remaining, ResetAt: bucketStart.Add(window)}, nil
+	cost := common.Cost(req, policy.Algorithm)
+
+	retries := maxRetries(policy.Algorithm)
+	for attempt := 0; attempt < retries; attempt++ {
+		consumed, err := e.Counter.Get(ctx, bucketKey)
+		if err != nil {
+			return model.Decision{}, err
+		}
+
+		if consumed+cost > limit {
+			return common.OverLimitDecision(policy, bucketEnd.Sub(now), 0, "quota_exceeded"), nil
+		}
+
+		swapped, err := e.Counter.CompareAndSwap(ctx, bucketKey, consumed, consumed+cost, window)
+		if err != nil {
+			return model.Decision{}, err
+		}
+		if swapped {
+			remaining := limit - (consumed + cost)
+			return model.Decision{Allowed: true, Action: model.ActionAllow, Reason: "within_quota", Remaining: remaining, ResetAt: bucketEnd}, nil
+		}
 	}
-	return common.OverLimitDecision(policy, bucketStart.Add(window).Sub(now), 0, "quota_exceeded"), nil
+
+	return common.OverLimitDecision(policy, bucketEnd.Sub(now), 0, "quota_contention"), nil
 }

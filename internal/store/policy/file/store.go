@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/rlaas-io/rlaas/pkg/model"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/rlaas-io/rlaas/pkg/model"
 )
 
+// payload is the JSON envelope persisted to disk, containing policies,
+// audit entries, and version snapshots.
 type payload struct {
 	Policies []model.Policy                   `json:"policies"`
 	Audits   []model.PolicyAuditEntry         `json:"audits,omitempty"`
@@ -166,6 +169,9 @@ func (s *Store) ListPolicyVersions(_ context.Context, policyID string) ([]model.
 	return pl.Versions[policyID], nil
 }
 
+// readPayload deserializes the file contents into a payload struct.
+// Supports both the envelope format and a bare policy array for
+// backwards compatibility.
 func (s *Store) readPayload() (payload, error) {
 	if _, err := os.Stat(s.path); os.IsNotExist(err) {
 		return payload{Policies: []model.Policy{}, Audits: []model.PolicyAuditEntry{}, Versions: map[string][]model.PolicyVersion{}}, nil
@@ -191,6 +197,8 @@ func (s *Store) readPayload() (payload, error) {
 	return payload{Policies: direct, Audits: []model.PolicyAuditEntry{}, Versions: map[string][]model.PolicyVersion{}}, nil
 }
 
+// writePayload atomically persists the payload by writing to a temporary
+// file and renaming, preventing corruption on crash.
 func (s *Store) writePayload(in payload) error {
 	if in.Versions == nil {
 		in.Versions = map[string][]model.PolicyVersion{}
@@ -199,5 +207,20 @@ func (s *Store) writePayload(in payload) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, out, 0644)
+	// Atomic write: write to temp file, then rename to prevent corruption
+	// if the process crashes mid-write.
+	tmp := s.path + ".tmp"
+	if err := os.WriteFile(tmp, out, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, s.path)
 }
+
+// Ping verifies the policy file is readable.
+func (s *Store) Ping(_ context.Context) error {
+	_, err := os.Stat(s.path)
+	return err
+}
+
+// Close is a no-op for file-backed stores.
+func (s *Store) Close() error { return nil }

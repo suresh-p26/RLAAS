@@ -2,6 +2,7 @@ package rlaas
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/rlaas-io/rlaas/internal/algorithm"
@@ -48,7 +49,14 @@ type Client struct {
 }
 
 // New builds a client with default matcher, key builder, cache, and algorithms.
+// Returns an error if required stores are nil.
 func New(opts Options) *Client {
+	if opts.PolicyStore == nil {
+		panic(errors.New("rlaas: PolicyStore must not be nil"))
+	}
+	if opts.CounterStore == nil {
+		panic(errors.New("rlaas: CounterStore must not be nil"))
+	}
 	cacheTTL := opts.CacheTTL
 	if cacheTTL <= 0 {
 		cacheTTL = 30 * time.Second

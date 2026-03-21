@@ -202,6 +202,48 @@
 
 <hr style="max-width:780px;margin:0 auto;" />
 
+<!-- ═══════════════════════════ SECURITY ═══════════════════════════ -->
+<section class="content">
+<h2>Security &amp; Observability</h2>
+
+<div class="info-cards">
+  <div class="info-card">
+    <h4>TLS / mTLS</h4>
+    <p>Native TLS on both HTTP and gRPC transports. Supports TLS 1.2+, custom CA bundles, and mutual TLS client verification. Configured via environment variables.</p>
+  </div>
+  <div class="info-card">
+    <h4>Authentication</h4>
+    <p>API key and JWT (HS256) authentication middleware applied to all routes. Configurable exempt paths for health probes. Role-based access control for mutating operations.</p>
+  </div>
+  <div class="info-card">
+    <h4>Security Headers</h4>
+    <p>OWASP-recommended headers on every response: HSTS, X-Content-Type-Options, X-Frame-Options, Content-Security-Policy, Referrer-Policy, Permissions-Policy.</p>
+  </div>
+  <div class="info-card">
+    <h4>Request Tracing</h4>
+    <p>Unique <code>X-Request-Id</code> injected per request using crypto/rand. Enables end-to-end correlation across services.</p>
+  </div>
+  <div class="info-card">
+    <h4>Prometheus Metrics</h4>
+    <p>Native <code>/metrics</code> endpoint exposing decisions total, allowed/denied, latency histogram, policy cache hits/misses, and per-tenant/policy counters. Cardinality capped at 10K per dimension.</p>
+  </div>
+  <div class="info-card">
+    <h4>Audit Logging</h4>
+    <p>Append-only JSONL decision audit log with async buffered writer. Non-blocking hot path. Supports file and pluggable backends.</p>
+  </div>
+  <div class="info-card">
+    <h4>Body Limits</h4>
+    <p>Configurable max request body size (default 1 MB) prevents memory exhaustion attacks. Applied globally via middleware.</p>
+  </div>
+  <div class="info-card">
+    <h4>Graceful Shutdown</h4>
+    <p>Both HTTP and gRPC servers drain in-flight requests on SIGTERM. Readiness probe (<code>/readyz</code>) toggled off before drain to stop new traffic from the load balancer.</p>
+  </div>
+</div>
+</section>
+
+<hr style="max-width:780px;margin:0 auto;" />
+
 <!-- ═══════════════════════════ PERFORMANCE ═══════════════════════════ -->
 <section class="content">
 <h2>Performance &amp; Optimizations</h2>

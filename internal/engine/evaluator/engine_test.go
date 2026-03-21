@@ -3,14 +3,15 @@ package evaluator
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	"github.com/rlaas-io/rlaas/internal/algorithm"
 	"github.com/rlaas-io/rlaas/internal/engine/matcher"
 	"github.com/rlaas-io/rlaas/internal/key"
 	"github.com/rlaas-io/rlaas/internal/store"
 	cache "github.com/rlaas-io/rlaas/internal/store/cache"
 	"github.com/rlaas-io/rlaas/pkg/model"
-	"testing"
-	"time"
 )
 
 type policyStoreStub struct {
@@ -29,18 +30,28 @@ func (p policyStoreStub) DeletePolicy(context.Context, string) error       { ret
 func (p policyStoreStub) ListPolicies(context.Context, map[string]string) ([]model.Policy, error) {
 	return nil, errors.New("n/a")
 }
+func (policyStoreStub) Ping(context.Context) error { return nil }
+func (policyStoreStub) Close() error               { return nil }
 
 type counterStoreStub struct {
 	store.CounterStore
 	leaseOK  bool
 	leaseCur int64
 	leaseErr error
+	leaseKey string
+	leaseTTL time.Duration
+	relKey   string
 }
 
-func (c counterStoreStub) AcquireLease(context.Context, string, int64, time.Duration) (bool, int64, error) {
+func (c *counterStoreStub) AcquireLease(_ context.Context, key string, _ int64, ttl time.Duration) (bool, int64, error) {
+	c.leaseKey = key
+	c.leaseTTL = ttl
 	return c.leaseOK, c.leaseCur, c.leaseErr
 }
-func (c counterStoreStub) ReleaseLease(context.Context, string) error { return nil }
+func (c *counterStoreStub) ReleaseLease(_ context.Context, key string) error {
+	c.relKey = key
+	return nil
+}
 
 type algoStub struct {
 	decision model.Decision
@@ -54,7 +65,7 @@ func (a algoStub) Evaluate(context.Context, model.Policy, model.RequestContext, 
 func newTestEngine(p []model.Policy, a algorithm.Evaluator) *DefaultEngine {
 	return &DefaultEngine{
 		PolicyStore:  policyStoreStub{policies: p},
-		CounterStore: counterStoreStub{leaseOK: true, leaseCur: 1},
+		CounterStore: &counterStoreStub{leaseOK: true, leaseCur: 1},
 		Matcher:      matcher.New(),
 		KeyBuilder:   key.New("rlaas"),
 		PolicyCache:  cache.NewMemoryPolicyCache(time.Minute),
@@ -96,17 +107,24 @@ func TestEvaluateAlgorithmAndShadowAndFailure(t *testing.T) {
 func TestStartConcurrencyLeasePaths(t *testing.T) {
 	p := model.Policy{PolicyID: "p1", Enabled: true, RolloutPercent: 100, Scope: model.PolicyScope{}, Algorithm: model.AlgorithmConfig{Type: model.AlgoConcurrency, MaxConcurrency: 1}, Action: model.ActionDeny}
 	e := newTestEngine([]model.Policy{p}, algoStub{decision: model.Decision{Allowed: true, Action: model.ActionAllow}})
-	e.CounterStore = counterStoreStub{leaseOK: false, leaseCur: 1}
+	e.CounterStore = &counterStoreStub{leaseOK: false, leaseCur: 1}
 	d, _, _ := e.StartConcurrencyLease(context.Background(), model.RequestContext{})
 	if d.Allowed {
 		t.Fatalf("expected denied lease")
 	}
-	e.CounterStore = counterStoreStub{leaseOK: true, leaseCur: 1}
+	leaseStore := &counterStoreStub{leaseOK: true, leaseCur: 1}
+	e.CounterStore = leaseStore
 	d, release, _ := e.StartConcurrencyLease(context.Background(), model.RequestContext{})
 	if !d.Allowed || release == nil {
 		t.Fatalf("expected allowed lease")
 	}
 	_ = release()
+	if leaseStore.leaseKey == "" || leaseStore.relKey == "" || leaseStore.leaseKey != leaseStore.relKey {
+		t.Fatalf("expected acquire/release to use same lease key, got acquire=%q release=%q", leaseStore.leaseKey, leaseStore.relKey)
+	}
+	if leaseStore.leaseKey[len(leaseStore.leaseKey)-12:] != ":concurrency" {
+		t.Fatalf("expected concurrency suffix on lease key, got %q", leaseStore.leaseKey)
+	}
 }
 
 func TestStartConcurrencyLeasePolicyErrorAndNoPolicy(t *testing.T) {
@@ -129,7 +147,7 @@ func TestHelperFunctions(t *testing.T) {
 		t.Fatalf("100 percent rollout should include")
 	}
 	if isInRollout(model.Policy{PolicyID: "p", RolloutPercent: 0}, model.RequestContext{}) {
-		t.Fatalf("0 percent rollout should exclude")
+		t.Fatalf("0 percent rollout helper should exclude explicit zero")
 	}
 	if allowDecision("x").Action != model.ActionAllow {
 		t.Fatalf("allowDecision should allow")
@@ -196,9 +214,30 @@ func TestEvaluateNoAlgorithmConfigured(t *testing.T) {
 func TestStartConcurrencyLeaseBackendErrorUsesFailureMode(t *testing.T) {
 	p := model.Policy{PolicyID: "p1", Enabled: true, RolloutPercent: 100, Scope: model.PolicyScope{}, Algorithm: model.AlgorithmConfig{Type: model.AlgoConcurrency, MaxConcurrency: 1}, Action: model.ActionDeny, FailureMode: model.FailClosed}
 	e := newTestEngine([]model.Policy{p}, algoStub{})
-	e.CounterStore = counterStoreStub{leaseErr: errors.New("backend down")}
+	e.CounterStore = &counterStoreStub{leaseErr: errors.New("backend down")}
 	d, _, _ := e.StartConcurrencyLease(context.Background(), model.RequestContext{})
 	if d.Allowed {
 		t.Fatalf("expected fail-closed deny on lease backend error")
+	}
+}
+
+func TestPickPolicy_DefaultZeroRolloutDoesNotDisablePolicy(t *testing.T) {
+	p := model.Policy{PolicyID: "p1", Enabled: true, Scope: model.PolicyScope{}, Algorithm: model.AlgorithmConfig{Type: model.AlgoFixedWindow}, Action: model.ActionDeny}
+	e := newTestEngine([]model.Policy{p}, algoStub{decision: model.Decision{Allowed: true, Action: model.ActionAllow}})
+	d, err := e.Evaluate(context.Background(), model.RequestContext{})
+	if err != nil || d.MatchedPolicyID != "p1" {
+		t.Fatalf("expected policy with zero rollout_percent to be treated as default-enabled: %+v err=%v", d, err)
+	}
+}
+
+func TestStartConcurrencyLease_UsesPolicyLeaseTTL(t *testing.T) {
+	p := model.Policy{PolicyID: "p1", Enabled: true, RolloutPercent: 100, Scope: model.PolicyScope{}, Algorithm: model.AlgorithmConfig{Type: model.AlgoConcurrency, MaxConcurrency: 1, LeaseTTL: 300}, Action: model.ActionDeny}
+	e := newTestEngine([]model.Policy{p}, algoStub{})
+	leaseStore := &counterStoreStub{leaseOK: true, leaseCur: 1}
+	e.CounterStore = leaseStore
+	_, release, _ := e.StartConcurrencyLease(context.Background(), model.RequestContext{})
+	_ = release()
+	if leaseStore.leaseTTL != 300*time.Second {
+		t.Fatalf("expected custom lease TTL, got %v", leaseStore.leaseTTL)
 	}
 }

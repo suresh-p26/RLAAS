@@ -1,0 +1,13 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rlaas-server
+  namespace: rlaas
+  labels:
+    app.kubernetes.io/name: rlaas
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rlaas
+      app.kubernetes.io/component: server
