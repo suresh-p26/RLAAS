@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -493,17 +492,14 @@ func TestDefaultGRPCListen_NilGRPCServer(t *testing.T) {
 }
 
 func TestStartInvalidationDispatcher_WithQueue(t *testing.T) {
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	called := 0
+	var called atomic.Int64
 	mockClient := &http.Client{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/rlaas/v1/agent/invalidate" {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		called++
+		called.Add(1)
 		w.WriteHeader(http.StatusAccepted)
 	}))
 	defer ts.Close()
@@ -515,8 +511,8 @@ func TestStartInvalidationDispatcher_WithQueue(t *testing.T) {
 	// Give async dispatcher time to process
 	time.Sleep(100 * time.Millisecond)
 
-	if called < 2 {
-		t.Fatalf("expected multiple events delivered, got %d", called)
+	if called.Load() < 2 {
+		t.Fatalf("expected multiple events delivered, got %d", called.Load())
 	}
 }
 
