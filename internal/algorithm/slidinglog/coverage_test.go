@@ -18,8 +18,8 @@ func TestEvaluator_EdgeCases(t *testing.T) {
 		PolicyID: "p1",
 		Name:     "test",
 		Algorithm: model.AlgorithmConfig{
-			Type:  model.AlgoSlidingWindowLog,
-			Limit: 0, // Zero limit gets normalized to 1
+			Type:   model.AlgoSlidingWindowLog,
+			Limit:  0, // Zero limit gets normalized to 1
 			Window: "1s",
 		},
 	}
@@ -49,8 +49,8 @@ func TestEvaluator_LargeWindow(t *testing.T) {
 	policy := model.Policy{
 		PolicyID: "p1",
 		Algorithm: model.AlgorithmConfig{
-			Type:  model.AlgoSlidingWindowLog,
-			Limit: 10,
+			Type:   model.AlgoSlidingWindowLog,
+			Limit:  10,
 			Window: "24h", // Large window
 		},
 	}
@@ -83,8 +83,8 @@ func TestEvaluator_ExactLimit(t *testing.T) {
 	policy := model.Policy{
 		PolicyID: "p1",
 		Algorithm: model.AlgorithmConfig{
-			Type:  model.AlgoSlidingWindowLog,
-			Limit: 3,
+			Type:   model.AlgoSlidingWindowLog,
+			Limit:  3,
 			Window: "1s",
 		},
 	}
@@ -111,8 +111,8 @@ func TestEvaluator_WindowExpiry(t *testing.T) {
 	policy := model.Policy{
 		PolicyID: "p1",
 		Algorithm: model.AlgorithmConfig{
-			Type:  model.AlgoSlidingWindowLog,
-			Limit: 2,
+			Type:   model.AlgoSlidingWindowLog,
+			Limit:  2,
 			Window: "100ms",
 		},
 	}
@@ -144,8 +144,8 @@ func TestEvaluator_Quantity(t *testing.T) {
 	policy := model.Policy{
 		PolicyID: "p1",
 		Algorithm: model.AlgorithmConfig{
-			Type:  model.AlgoSlidingWindowLog,
-			Limit: 10,
+			Type:   model.AlgoSlidingWindowLog,
+			Limit:  10,
 			Window: "1s",
 		},
 	}
@@ -170,8 +170,8 @@ func TestEvaluator_MultipleKeys(t *testing.T) {
 	policy := model.Policy{
 		PolicyID: "p1",
 		Algorithm: model.AlgorithmConfig{
-			Type:  model.AlgoSlidingWindowLog,
-			Limit: 2,
+			Type:   model.AlgoSlidingWindowLog,
+			Limit:  2,
 			Window: "1s",
 		},
 	}
