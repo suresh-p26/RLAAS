@@ -8,60 +8,60 @@ export class RlaasClient {
   }
 
   async checkLimit(req: CheckRequest): Promise<Decision> {
-    return this.post<Decision>("/v1/check", req);
+    return this.post<Decision>("/rlaas/v1/check", req);
   }
 
   async acquire(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return this.post("/v1/acquire", request);
+    return this.post("/rlaas/v1/acquire", request);
   }
 
   async release(leaseId: string): Promise<Record<string, unknown>> {
-    return this.post("/v1/release", { lease_id: leaseId });
+    return this.post("/rlaas/v1/release", { lease_id: leaseId });
   }
 
   async listPolicies(): Promise<Record<string, unknown>[]> {
-    return this.get("/v1/policies");
+    return this.get("/rlaas/v1/policies");
   }
 
   async getPolicy(policyId: string): Promise<Record<string, unknown>> {
-    return this.get(`/v1/policies/${policyId}`);
+    return this.get(`/rlaas/v1/policies/${policyId}`);
   }
 
   async createPolicy(policy: Policy): Promise<Record<string, unknown>> {
-    return this.post("/v1/policies", policy);
+    return this.post("/rlaas/v1/policies", policy);
   }
 
   async updatePolicy(policyId: string, policy: Policy): Promise<Record<string, unknown>> {
-    return this.put(`/v1/policies/${policyId}`, policy);
+    return this.put(`/rlaas/v1/policies/${policyId}`, policy);
   }
 
   async deletePolicy(policyId: string): Promise<void> {
-    await this.del(`/v1/policies/${policyId}`);
+    await this.del(`/rlaas/v1/policies/${policyId}`);
   }
 
   async validatePolicy(policy: Policy): Promise<Record<string, unknown>> {
-    return this.post("/v1/policies/validate", policy);
+    return this.post("/rlaas/v1/policies/validate", policy);
   }
 
   async updateRollout(policyId: string, rolloutPercent: number): Promise<Record<string, unknown>> {
-    return this.post(`/v1/policies/${policyId}/rollout`, { rollout_percent: rolloutPercent });
+    return this.post(`/rlaas/v1/policies/${policyId}/rollout`, { rollout_percent: rolloutPercent });
   }
 
   async rollbackPolicy(policyId: string, version: number): Promise<Record<string, unknown>> {
-    return this.post(`/v1/policies/${policyId}/rollback`, { version });
+    return this.post(`/rlaas/v1/policies/${policyId}/rollback`, { version });
   }
 
   async listPolicyAudit(policyId: string): Promise<Record<string, unknown>[]> {
-    return this.get(`/v1/policies/${policyId}/audit`);
+    return this.get(`/rlaas/v1/policies/${policyId}/audit`);
   }
 
   async listPolicyVersions(policyId: string): Promise<Record<string, unknown>[]> {
-    return this.get(`/v1/policies/${policyId}/versions`);
+    return this.get(`/rlaas/v1/policies/${policyId}/versions`);
   }
 
   async analyticsSummary(top?: number): Promise<Record<string, unknown>> {
     const suffix = typeof top === "number" ? `?top=${top}` : "";
-    return this.get(`/v1/analytics/summary${suffix}`);
+    return this.get(`/rlaas/v1/analytics/summary${suffix}`);
   }
 
   private async get<T>(path: string): Promise<T> {

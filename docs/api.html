@@ -35,6 +35,8 @@
 <aside class="sidebar">
   <h4>Endpoints</h4>
   <ul>
+    <li><a href="#auth">Authentication</a></li>
+    <li><a href="#operational">Operational</a></li>
     <li><a href="#decision">Decision APIs</a></li>
     <li><a href="#policies">Policy CRUD</a></li>
     <li><a href="#lifecycle">Lifecycle APIs</a></li>
@@ -58,13 +60,51 @@
 <h1>API Reference</h1>
 <p class="text-muted" style="margin-bottom:2.5rem;">Base URL: <code>http://localhost:8080</code> (default)</p>
 
+<!-- ═══════════ AUTH ═══════════ -->
+<section id="auth">
+<h2>Authentication</h2>
+<p>When authentication is enabled (<code>RLAAS_AUTH_ENABLED=true</code>), all requests except exempt paths must include credentials.</p>
+
+<h3>API Key Mode</h3>
+<p>Set <code>RLAAS_AUTH_MODE=apikey</code> and provide keys via <code>RLAAS_AUTH_API_KEYS</code>.</p>
+<pre><code>X-Api-Key: your-secret-key</code></pre>
+<p>Alternatively, pass the key as a Bearer token:</p>
+<pre><code>Authorization: Bearer your-secret-key</code></pre>
+
+<h3>JWT Mode</h3>
+<p>Set <code>RLAAS_AUTH_MODE=jwt</code> and provide the HMAC secret via <code>RLAAS_AUTH_JWT_SECRET</code>.</p>
+<pre><code>Authorization: Bearer &lt;HS256-signed-JWT&gt;</code></pre>
+<p>Mutating endpoints (POST, PUT, DELETE) require the configured admin role claim. Read endpoints accept the read-only role.</p>
+
+<h3>Exempt Paths</h3>
+<p><code>/healthz</code> and <code>/readyz</code> are exempt by default so that Kubernetes probes work without credentials.</p>
+</section>
+
+<hr />
+
+<!-- ═══════════ OPERATIONAL ═══════════ -->
+<section id="operational">
+<h2>Operational Endpoints</h2>
+
+<h3><span class="endpoint-method method-get">GET</span> <code>/healthz</code></h3>
+<p>Liveness probe. Returns <code>200 OK</code> with body <code>ok</code> when the process is alive.</p>
+
+<h3><span class="endpoint-method method-get">GET</span> <code>/readyz</code></h3>
+<p>Readiness probe. Returns <code>200 OK</code> with body <code>ok</code> after all routes are registered and the server is ready to accept traffic. Returns <code>503 Service Unavailable</code> during startup and shutdown drain.</p>
+
+<h3><span class="endpoint-method method-get">GET</span> <code>/metrics</code></h3>
+<p>Prometheus text exposition format. Exposes counters for decisions (total, allowed, denied, shadow), latency histogram, policy cache hit/miss, counter store errors, and per-tenant/policy dimensional counters.</p>
+</section>
+
+<hr />
+
 <!-- ═══════════ DECISION ═══════════ -->
 <section id="decision">
 <h2>Decision APIs</h2>
 <p>Core endpoints for rate-limit evaluation and concurrency control.</p>
 
-<!-- POST /v1/check -->
-<h3><span class="endpoint-method method-post">POST</span> <code>/v1/check</code></h3>
+<!-- POST /rlaas/v1/check -->
+<h3><span class="endpoint-method method-post">POST</span> <code>/rlaas/v1/check</code></h3>
 <p>Evaluate a rate-limit decision for a request context.</p>
 
 <h4>Request Body</h4>
@@ -96,8 +136,8 @@
   All fields in the request body are optional except <code>signal_type</code>. The engine matches the most specific policy based on provided fields.
 </div>
 
-<!-- POST /v1/acquire -->
-<h3><span class="endpoint-method method-post">POST</span> <code>/v1/acquire</code></h3>
+<!-- POST /rlaas/v1/acquire -->
+<h3><span class="endpoint-method method-post">POST</span> <code>/rlaas/v1/acquire</code></h3>
 <p>Acquire a concurrency lease. Use with concurrency limiter algorithm.</p>
 
 <h4>Request Body</h4>
@@ -117,8 +157,8 @@
   "remaining": 4
 }</code></pre>
 
-<!-- POST /v1/release -->
-<h3><span class="endpoint-method method-post">POST</span> <code>/v1/release</code></h3>
+<!-- POST /rlaas/v1/release -->
+<h3><span class="endpoint-method method-post">POST</span> <code>/rlaas/v1/release</code></h3>
 <p>Release a previously acquired concurrency lease.</p>
 
 <h4>Request Body</h4>
@@ -144,8 +184,8 @@
 <section id="policies">
 <h2>Policy CRUD</h2>
 
-<!-- GET /v1/policies -->
-<h3><span class="endpoint-method method-get">GET</span> <code>/v1/policies</code></h3>
+<!-- GET /rlaas/v1/policies -->
+<h3><span class="endpoint-method method-get">GET</span> <code>/rlaas/v1/policies</code></h3>
 <p>List all policies.</p>
 <h4>Response</h4>
 <pre><code>[
@@ -163,8 +203,8 @@
   }
 ]</code></pre>
 
-<!-- POST /v1/policies -->
-<h3><span class="endpoint-method method-post">POST</span> <code>/v1/policies</code></h3>
+<!-- POST /rlaas/v1/policies -->
+<h3><span class="endpoint-method method-post">POST</span> <code>/rlaas/v1/policies</code></h3>
 <p>Create a new policy.</p>
 <h4>Request Body</h4>
 <pre><code>{
@@ -188,16 +228,16 @@
   "rollout_percent": 100
 }</code></pre>
 
-<!-- GET /v1/policies/{id} -->
-<h3><span class="endpoint-method method-get">GET</span> <code>/v1/policies/{id}</code></h3>
+<!-- GET /rlaas/v1/policies/{id} -->
+<h3><span class="endpoint-method method-get">GET</span> <code>/rlaas/v1/policies/{id}</code></h3>
 <p>Get a specific policy by ID.</p>
 
-<!-- PUT /v1/policies/{id} -->
-<h3><span class="endpoint-method method-put">PUT</span> <code>/v1/policies/{id}</code></h3>
+<!-- PUT /rlaas/v1/policies/{id} -->
+<h3><span class="endpoint-method method-put">PUT</span> <code>/rlaas/v1/policies/{id}</code></h3>
 <p>Update an existing policy. The full policy body is required.</p>
 
-<!-- DELETE /v1/policies/{id} -->
-<h3><span class="endpoint-method method-delete">DELETE</span> <code>/v1/policies/{id}</code></h3>
+<!-- DELETE /rlaas/v1/policies/{id} -->
+<h3><span class="endpoint-method method-delete">DELETE</span> <code>/rlaas/v1/policies/{id}</code></h3>
 <p>Delete a policy by ID.</p>
 </section>
 
@@ -207,8 +247,8 @@
 <section id="lifecycle">
 <h2>Policy Lifecycle APIs</h2>
 
-<!-- POST /v1/policies/validate -->
-<h3><span class="endpoint-method method-post">POST</span> <code>/v1/policies/validate</code></h3>
+<!-- POST /rlaas/v1/policies/validate -->
+<h3><span class="endpoint-method method-post">POST</span> <code>/rlaas/v1/policies/validate</code></h3>
 <p>Validate a policy definition before deployment.</p>
 <h4>Request</h4>
 <pre><code>{
@@ -222,22 +262,22 @@
 <h4>Response</h4>
 <pre><code>{ "valid": true }</code></pre>
 
-<!-- POST /v1/policies/{id}/rollout -->
-<h3><span class="endpoint-method method-post">POST</span> <code>/v1/policies/{id}/rollout</code></h3>
+<!-- POST /rlaas/v1/policies/{id}/rollout -->
+<h3><span class="endpoint-method method-post">POST</span> <code>/rlaas/v1/policies/{id}/rollout</code></h3>
 <p>Update the rollout percentage for gradual enforcement.</p>
 <pre><code>{ "rollout_percent": 25 }</code></pre>
 
-<!-- POST /v1/policies/{id}/rollback -->
-<h3><span class="endpoint-method method-post">POST</span> <code>/v1/policies/{id}/rollback</code></h3>
+<!-- POST /rlaas/v1/policies/{id}/rollback -->
+<h3><span class="endpoint-method method-post">POST</span> <code>/rlaas/v1/policies/{id}/rollback</code></h3>
 <p>Roll back to a specific previous version.</p>
 <pre><code>{ "version": 1 }</code></pre>
 
-<!-- GET /v1/policies/{id}/audit -->
-<h3><span class="endpoint-method method-get">GET</span> <code>/v1/policies/{id}/audit</code></h3>
+<!-- GET /rlaas/v1/policies/{id}/audit -->
+<h3><span class="endpoint-method method-get">GET</span> <code>/rlaas/v1/policies/{id}/audit</code></h3>
 <p>Get the audit trail for a policy — all changes with timestamps, action types, old/new values.</p>
 
-<!-- GET /v1/policies/{id}/versions -->
-<h3><span class="endpoint-method method-get">GET</span> <code>/v1/policies/{id}/versions</code></h3>
+<!-- GET /rlaas/v1/policies/{id}/versions -->
+<h3><span class="endpoint-method method-get">GET</span> <code>/rlaas/v1/policies/{id}/versions</code></h3>
 <p>Get all historical versions of a policy for review or rollback.</p>
 </section>
 
@@ -247,8 +287,8 @@
 <section id="analytics">
 <h2>Analytics</h2>
 
-<!-- GET /v1/analytics/summary -->
-<h3><span class="endpoint-method method-get">GET</span> <code>/v1/analytics/summary</code></h3>
+<!-- GET /rlaas/v1/analytics/summary -->
+<h3><span class="endpoint-method method-get">GET</span> <code>/rlaas/v1/analytics/summary</code></h3>
 <p>Get a summary of decision events with tag aggregation.</p>
 
 <h4>Query Parameters</h4>
@@ -260,7 +300,7 @@
 </table>
 
 <h4>Example</h4>
-<pre><code>curl http://localhost:8080/v1/analytics/summary?top=5</code></pre>
+<pre><code>curl http://localhost:8080/rlaas/v1/analytics/summary?top=5</code></pre>
 </section>
 
 <hr />
@@ -274,10 +314,10 @@
 <table>
   <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
   <tbody>
-    <tr><td><span class="endpoint-method method-post">POST</span></td><td class="endpoint-path">/v1/check</td><td>Local rate-limit decision (proxied to upstream)</td></tr>
+    <tr><td><span class="endpoint-method method-post">POST</span></td><td class="endpoint-path">/rlaas/v1/check</td><td>Local rate-limit decision (proxied to upstream)</td></tr>
     <tr><td><span class="endpoint-method method-get">GET</span></td><td class="endpoint-path">/healthz</td><td>Health check</td></tr>
-    <tr><td><span class="endpoint-method method-get">GET</span></td><td class="endpoint-path">/v1/agent/status</td><td>Agent status and metadata</td></tr>
-    <tr><td><span class="endpoint-method method-post">POST</span></td><td class="endpoint-path">/v1/agent/invalidate</td><td>Trigger cache invalidation</td></tr>
+    <tr><td><span class="endpoint-method method-get">GET</span></td><td class="endpoint-path">/rlaas/v1/agent/status</td><td>Agent status and metadata</td></tr>
+    <tr><td><span class="endpoint-method method-post">POST</span></td><td class="endpoint-path">/rlaas/v1/agent/invalidate</td><td>Trigger cache invalidation</td></tr>
   </tbody>
 </table>
 </div>

@@ -35,19 +35,19 @@ func TestSummaryHandler(t *testing.T) {
 	h := SummaryHandler(r)
 
 	badMethod := httptest.NewRecorder()
-	h.ServeHTTP(badMethod, httptest.NewRequest(http.MethodPost, "/v1/analytics/summary", nil))
+	h.ServeHTTP(badMethod, httptest.NewRequest(http.MethodPost, "/rlaas/v1/analytics/summary", nil))
 	if badMethod.Code != http.StatusNotFound {
 		t.Fatalf("expected not found for unsupported method")
 	}
 
 	badTop := httptest.NewRecorder()
-	h.ServeHTTP(badTop, httptest.NewRequest(http.MethodGet, "/v1/analytics/summary?top=x", nil))
+	h.ServeHTTP(badTop, httptest.NewRequest(http.MethodGet, "/rlaas/v1/analytics/summary?top=x", nil))
 	if badTop.Code != http.StatusBadRequest {
 		t.Fatalf("expected bad request for invalid top")
 	}
 
 	ok := httptest.NewRecorder()
-	h.ServeHTTP(ok, httptest.NewRequest(http.MethodGet, "/v1/analytics/summary?top=1", nil))
+	h.ServeHTTP(ok, httptest.NewRequest(http.MethodGet, "/rlaas/v1/analytics/summary?top=1", nil))
 	if ok.Code != http.StatusOK {
 		t.Fatalf("expected summary success")
 	}

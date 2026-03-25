@@ -25,31 +25,31 @@ It supports three deployment models:
 ### Control plane APIs
 
 - Decision:
-  - `POST /v1/check`
-  - `POST /v1/acquire`
-  - `POST /v1/release`
+  - `POST /rlaas/v1/check`
+  - `POST /rlaas/v1/acquire`
+  - `POST /rlaas/v1/release`
 - Policy management:
-  - `GET /v1/policies`
-  - `POST /v1/policies`
-  - `GET /v1/policies/{id}`
-  - `PUT /v1/policies/{id}`
-  - `DELETE /v1/policies/{id}`
-  - `GET /v1/policies/{id}/audit`
-  - `GET /v1/policies/{id}/versions`
-  - `POST /v1/policies/{id}/rollout`
-  - `POST /v1/policies/validate`
-  - `POST /v1/policies/{id}/rollback`
+  - `GET /rlaas/v1/policies`
+  - `POST /rlaas/v1/policies`
+  - `GET /rlaas/v1/policies/{id}`
+  - `PUT /rlaas/v1/policies/{id}`
+  - `DELETE /rlaas/v1/policies/{id}`
+  - `GET /rlaas/v1/policies/{id}/audit`
+  - `GET /rlaas/v1/policies/{id}/versions`
+  - `POST /rlaas/v1/policies/{id}/rollout`
+  - `POST /rlaas/v1/policies/validate`
+  - `POST /rlaas/v1/policies/{id}/rollback`
 
 ### Service and runtime features
 
 - gRPC decision service (proto in `api/proto/rlaas.proto`): `CheckLimit`, `Acquire`, `Release`
 - Sidecar endpoints:
-  - `POST /v1/check`
+  - `POST /rlaas/v1/check`
   - `GET /healthz`
-  - `GET /v1/agent/status`
-  - `POST /v1/agent/invalidate`
+  - `GET /rlaas/v1/agent/status`
+  - `POST /rlaas/v1/agent/invalidate`
 - Analytics:
-  - `GET /v1/analytics/summary` (event and tag aggregation, optional `top`)
+  - `GET /rlaas/v1/analytics/summary` (event and tag aggregation, optional `top`)
 - Invalidation:
   - in-process broker
   - async push fanout to sidecars using bounded workers
@@ -122,7 +122,7 @@ $body = @{
   user_id = "u1"
 } | ConvertTo-Json
 
-Invoke-RestMethod -Method Post -Uri "http://localhost:8080/v1/check" -ContentType "application/json" -Body $body
+Invoke-RestMethod -Method Post -Uri "http://localhost:8080/rlaas/v1/check" -ContentType "application/json" -Body $body
 ```
 
 ### 5) Run tests and benchmarks
@@ -136,7 +136,7 @@ go test ./benchmarks -run ^$ -bench . -benchmem
 
 ### Option A: Centralized HTTP
 
-1. Send `RequestContext` to `POST /v1/check`.
+1. Send `RequestContext` to `POST /rlaas/v1/check`.
 2. Read `allowed`, `action`, `reason`, `remaining`, `retry_after`.
 3. Enforce behavior in your service.
 
@@ -149,7 +149,7 @@ go test ./benchmarks -run ^$ -bench . -benchmem
 ### Option C: Sidecar local mode
 
 1. Run app and sidecar together.
-2. Call sidecar `POST /v1/check` locally.
+2. Call sidecar `POST /rlaas/v1/check` locally.
 3. Let sidecar handle sync and invalidation updates.
 
 ### Option D: Non-Go SDK clients
@@ -170,7 +170,7 @@ Base URL: `http://localhost:8080`
 Request:
 
 ```bash
-curl -X POST http://localhost:8080/v1/check \
+curl -X POST http://localhost:8080/rlaas/v1/check \
   -H "Content-Type: application/json" \
   -d '{
     "request_id":"r1",
@@ -200,7 +200,7 @@ Typical response:
 Request:
 
 ```bash
-curl -X POST http://localhost:8080/v1/policies \
+curl -X POST http://localhost:8080/rlaas/v1/policies \
   -H "Content-Type: application/json" \
   -d '{
     "policy_id":"payments-limit",
@@ -221,7 +221,7 @@ curl -X POST http://localhost:8080/v1/policies \
 Request:
 
 ```bash
-curl -X POST http://localhost:8080/v1/policies/validate \
+curl -X POST http://localhost:8080/rlaas/v1/policies/validate \
   -H "Content-Type: application/json" \
   -d '{
     "name":"Validation sample",
@@ -244,7 +244,7 @@ Response:
 Request:
 
 ```bash
-curl -X POST http://localhost:8080/v1/policies/payments-limit/rollout \
+curl -X POST http://localhost:8080/rlaas/v1/policies/payments-limit/rollout \
   -H "Content-Type: application/json" \
   -d '{"rollout_percent":25}'
 ```
@@ -254,7 +254,7 @@ curl -X POST http://localhost:8080/v1/policies/payments-limit/rollout \
 Request:
 
 ```bash
-curl -X POST http://localhost:8080/v1/policies/payments-limit/rollback \
+curl -X POST http://localhost:8080/rlaas/v1/policies/payments-limit/rollback \
   -H "Content-Type: application/json" \
   -d '{"version":1}'
 ```
@@ -262,15 +262,15 @@ curl -X POST http://localhost:8080/v1/policies/payments-limit/rollback \
 ### 6) Query policy history and versions
 
 ```bash
-curl http://localhost:8080/v1/policies/payments-limit/audit
-curl http://localhost:8080/v1/policies/payments-limit/versions
+curl http://localhost:8080/rlaas/v1/policies/payments-limit/audit
+curl http://localhost:8080/rlaas/v1/policies/payments-limit/versions
 ```
 
 ### 7) Query analytics summary
 
 ```bash
-curl http://localhost:8080/v1/analytics/summary
-curl "http://localhost:8080/v1/analytics/summary?top=5"
+curl http://localhost:8080/rlaas/v1/analytics/summary
+curl "http://localhost:8080/rlaas/v1/analytics/summary?top=5"
 ```
 
 ## Production readiness checklist

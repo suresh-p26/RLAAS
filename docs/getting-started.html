@@ -79,8 +79,15 @@ go mod tidy</code></pre>
   <div class="callout callout-info">
     <strong>Environment Variables</strong>
     <code>RLAAS_POLICY_FILE</code> — policy file path (default: <code>examples/policies.json</code>)<br/>
+    <code>RLAAS_HTTP_ADDR</code> — HTTP listen address (default: <code>:8080</code>)<br/>
     <code>RLAAS_GRPC_ADDR</code> — gRPC listen address (default: <code>:9090</code>)<br/>
-    <code>RLAAS_INVALIDATION_TARGETS</code> — comma-separated sidecar base URLs
+    <code>RLAAS_INVALIDATION_TARGETS</code> — comma-separated sidecar base URLs<br/>
+    <code>RLAAS_TLS_ENABLED</code> — set <code>true</code> to enable native TLS<br/>
+    <code>RLAAS_TLS_CERT_FILE</code> / <code>RLAAS_TLS_KEY_FILE</code> — TLS certificate and key<br/>
+    <code>RLAAS_AUTH_ENABLED</code> — set <code>true</code> to enable authentication<br/>
+    <code>RLAAS_AUTH_MODE</code> — <code>apikey</code> or <code>jwt</code><br/>
+    <code>RLAAS_AUTH_API_KEYS</code> — comma-separated API keys (for apikey mode)<br/>
+    <code>RLAAS_AUTH_JWT_SECRET</code> — HMAC secret (for jwt mode)
   </div>
 </div>
 
@@ -88,7 +95,7 @@ go mod tidy</code></pre>
   <h3>Make your first check</h3>
 
   <h4>curl (Linux / macOS)</h4>
-<pre><code>curl -X POST http://localhost:8080/v1/check \
+<pre><code>curl -X POST http://localhost:8080/rlaas/v1/check \
   -H "Content-Type: application/json" \
   -d '{
     "request_id": "req-1",
@@ -113,7 +120,7 @@ go mod tidy</code></pre>
   user_id = "u1"
 } | ConvertTo-Json
 
-Invoke-RestMethod -Method Post -Uri "http://localhost:8080/v1/check" `
+Invoke-RestMethod -Method Post -Uri "http://localhost:8080/rlaas/v1/check" `
   -ContentType "application/json" -Body $body</code></pre>
 
   <h4>Expected Response</h4>
@@ -158,7 +165,7 @@ go test ./benchmarks -run ^$ -bench . -benchmem</code></pre>
   <div class="info-card" style="border-left:4px solid #4361ee;">
     <h4>Option A: Centralized HTTP</h4>
     <ol>
-      <li>Send <code>RequestContext</code> to <code>POST /v1/check</code></li>
+      <li>Send <code>RequestContext</code> to <code>POST /rlaas/v1/check</code></li>
       <li>Read <code>allowed</code>, <code>action</code>, <code>reason</code>, <code>remaining</code>, <code>retry_after</code></li>
       <li>Enforce behavior in your service</li>
     </ol>
@@ -175,7 +182,7 @@ go test ./benchmarks -run ^$ -bench . -benchmem</code></pre>
     <h4>Option C: Sidecar Local Mode</h4>
     <ol>
       <li>Run app and sidecar together</li>
-      <li>Call sidecar <code>POST /v1/check</code> locally</li>
+      <li>Call sidecar <code>POST /rlaas/v1/check</code> locally</li>
       <li>Let sidecar handle sync and invalidation</li>
     </ol>
   </div>
@@ -195,7 +202,7 @@ go test ./benchmarks -run ^$ -bench . -benchmem</code></pre>
 <h2>API Examples (Copy/Paste)</h2>
 
 <h3>Create a Policy</h3>
-<pre><code>curl -X POST http://localhost:8080/v1/policies \
+<pre><code>curl -X POST http://localhost:8080/rlaas/v1/policies \
   -H "Content-Type: application/json" \
   -d '{
     "policy_id": "payments-limit",
@@ -219,7 +226,7 @@ go test ./benchmarks -run ^$ -bench . -benchmem</code></pre>
   }'</code></pre>
 
 <h3>Validate Before Deploying</h3>
-<pre><code>curl -X POST http://localhost:8080/v1/policies/validate \
+<pre><code>curl -X POST http://localhost:8080/rlaas/v1/policies/validate \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Test",
@@ -234,27 +241,27 @@ go test ./benchmarks -run ^$ -bench . -benchmem</code></pre>
 
 <h3>Gradual Rollout</h3>
 <pre><code># Start at 25%
-curl -X POST http://localhost:8080/v1/policies/payments-limit/rollout \
+curl -X POST http://localhost:8080/rlaas/v1/policies/payments-limit/rollout \
   -H "Content-Type: application/json" \
   -d '{"rollout_percent": 25}'
 
 # Bump to 100% when confident
-curl -X POST http://localhost:8080/v1/policies/payments-limit/rollout \
+curl -X POST http://localhost:8080/rlaas/v1/policies/payments-limit/rollout \
   -H "Content-Type: application/json" \
   -d '{"rollout_percent": 100}'</code></pre>
 
 <h3>Rollback to Previous Version</h3>
-<pre><code>curl -X POST http://localhost:8080/v1/policies/payments-limit/rollback \
+<pre><code>curl -X POST http://localhost:8080/rlaas/v1/policies/payments-limit/rollback \
   -H "Content-Type: application/json" \
   -d '{"version": 1}'</code></pre>
 
 <h3>View Audit Trail &amp; Versions</h3>
-<pre><code>curl http://localhost:8080/v1/policies/payments-limit/audit
-curl http://localhost:8080/v1/policies/payments-limit/versions</code></pre>
+<pre><code>curl http://localhost:8080/rlaas/v1/policies/payments-limit/audit
+curl http://localhost:8080/rlaas/v1/policies/payments-limit/versions</code></pre>
 
 <h3>Analytics Summary</h3>
-<pre><code>curl http://localhost:8080/v1/analytics/summary
-curl "http://localhost:8080/v1/analytics/summary?top=5"</code></pre>
+<pre><code>curl http://localhost:8080/rlaas/v1/analytics/summary
+curl "http://localhost:8080/rlaas/v1/analytics/summary?top=5"</code></pre>
 
 <hr />
 
@@ -263,13 +270,17 @@ curl "http://localhost:8080/v1/analytics/summary?top=5"</code></pre>
 <table>
   <thead><tr><th>Item</th><th>Details</th></tr></thead>
   <tbody>
-    <tr><td>&#x2705; TLS termination</td><td>Run behind an ingress/proxy with TLS</td></tr>
-    <tr><td>&#x2705; Distributed counters</td><td>Use Redis for multi-node counter sharing</td></tr>
-    <tr><td>&#x2705; Health probes</td><td>Configure K8s liveness/readiness on <code>/healthz</code></td></tr>
+    <tr><td>&#x2705; TLS / mTLS</td><td>Set <code>RLAAS_TLS_ENABLED=true</code> with cert and key files, or run behind an ingress with TLS termination</td></tr>
+    <tr><td>&#x2705; Authentication</td><td>Set <code>RLAAS_AUTH_ENABLED=true</code> with <code>RLAAS_AUTH_MODE</code> (<code>apikey</code> or <code>jwt</code>) and matching secrets</td></tr>
+    <tr><td>&#x2705; Distributed counters</td><td>Use Redis for multi-node counter sharing (<code>RLAAS_REDIS_ADDR</code>)</td></tr>
+    <tr><td>&#x2705; Health probes</td><td>Configure K8s liveness on <code>/healthz</code> and readiness on <code>/readyz</code></td></tr>
+    <tr><td>&#x2705; Prometheus metrics</td><td>Scrape <code>/metrics</code> for decisions, latency histogram, and per-tenant/policy counters</td></tr>
+    <tr><td>&#x2705; Security headers</td><td>HSTS, X-Content-Type-Options, X-Frame-Options, CSP applied automatically</td></tr>
+    <tr><td>&#x2705; Request tracing</td><td><code>X-Request-Id</code> injected per request for end-to-end correlation</td></tr>
+    <tr><td>&#x2705; Body limits</td><td>1 MB default (<code>RLAAS_MAX_BODY_BYTES</code>) prevents OOM attacks</td></tr>
     <tr><td>&#x2705; Invalidation targets</td><td>Set <code>RLAAS_INVALIDATION_TARGETS</code> for sidecars</td></tr>
-    <tr><td>&#x2705; Monitoring</td><td>Monitor decision + analytics endpoints</td></tr>
-    <tr><td>&#x2705; Benchmark baseline</td><td>Run benchmark suite before rollout</td></tr>
     <tr><td>&#x2705; Shadow mode first</td><td>Deploy new policies in shadow mode, validate, then enforce</td></tr>
+    <tr><td>&#x2705; Benchmark baseline</td><td>Run benchmark suite before rollout</td></tr>
   </tbody>
 </table>
 
@@ -327,16 +338,16 @@ curl "http://localhost:8080/v1/analytics/summary?top=5"</code></pre>
 
 <h4>Control Plane APIs</h4>
 <ul>
-  <li>Decision: POST /v1/check, POST /v1/acquire, POST /v1/release</li>
-  <li>Policy CRUD: GET/POST /v1/policies, GET/PUT/DELETE /v1/policies/{id}</li>
+  <li>Decision: POST /rlaas/v1/check, POST /rlaas/v1/acquire, POST /rlaas/v1/release</li>
+  <li>Policy CRUD: GET/POST /rlaas/v1/policies, GET/PUT/DELETE /rlaas/v1/policies/{id}</li>
   <li>Lifecycle: audit, versions, rollout, rollback, validate</li>
-  <li>Analytics: GET /v1/analytics/summary</li>
+  <li>Analytics: GET /rlaas/v1/analytics/summary</li>
 </ul>
 
 <h4>Service &amp; Runtime</h4>
 <ul>
   <li>gRPC decision service (CheckLimit, Acquire, Release)</li>
-  <li>Sidecar endpoints: /v1/check, /healthz, /v1/agent/status, /v1/agent/invalidate</li>
+  <li>Sidecar endpoints: /rlaas/v1/check, /healthz, /rlaas/v1/agent/status, /rlaas/v1/agent/invalidate</li>
   <li>Lock-sharded in-memory counters (~6 ns/op)</li>
   <li>Async invalidation with bounded workers</li>
   <li>Burst coalescing in sidecar sync loop</li>

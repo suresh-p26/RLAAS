@@ -18,12 +18,14 @@ import (
 	"time"
 )
 
+// agentConfig holds runtime settings for the sidecar process.
 type agentConfig struct {
 	ListenAddr   string
 	UpstreamBase string
 	SyncInterval time.Duration
 }
 
+// syncState tracks policy synchronisation health for the status endpoint.
 type syncState struct {
 	mu          sync.RWMutex
 	lastSuccess time.Time
@@ -31,6 +33,7 @@ type syncState struct {
 	runs        int64
 }
 
+// markSuccess records a successful sync at the given time.
 func (s *syncState) markSuccess(t time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -39,6 +42,7 @@ func (s *syncState) markSuccess(t time.Time) {
 	s.runs++
 }
 
+// markError records a failed sync with the given error message.
 func (s *syncState) markError(err string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -46,6 +50,7 @@ func (s *syncState) markError(err string) {
 	s.runs++
 }
 
+// snapshot returns a read-only copy of sync health for JSON serialisation.
 func (s *syncState) snapshot() map[string]any {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -64,6 +69,8 @@ func main() {
 	}
 }
 
+// run wires the agent: loads config, starts the sync loop, and blocks on
+// the HTTP server.
 func run(listenFn func(*http.Server) error, syncFn func(context.Context, agentConfig, *http.Client, *syncState, <-chan string)) error {
 	cfg, err := loadConfig()
 	if err != nil {
@@ -72,11 +79,15 @@ func run(listenFn func(*http.Server) error, syncFn func(context.Context, agentCo
 	state := &syncState{}
 	client := &http.Client{Timeout: 5 * time.Second}
 	invalidations := make(chan string, 32)
-	go syncFn(context.Background(), cfg, client, state, invalidations)
+	// Use a cancellable context so the sync loop stops on shutdown.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go syncFn(ctx, cfg, client, state, invalidations)
 	srv := buildServer(cfg, client, state, invalidations)
 	return listenFn(srv)
 }
 
+// loadConfig reads agent environment variables and returns the parsed config.
 func loadConfig() (agentConfig, error) {
 	listen := os.Getenv("RLAAS_AGENT_LISTEN")
 	if strings.TrimSpace(listen) == "" {
@@ -100,17 +111,21 @@ func loadConfig() (agentConfig, error) {
 	return agentConfig{ListenAddr: listen, UpstreamBase: strings.TrimRight(upstream, "/"), SyncInterval: time.Duration(intervalSecs) * time.Second}, nil
 }
 
+// buildServer constructs the agent HTTP mux and http.Server with
+// production timeouts.
 func buildServer(cfg agentConfig, client *http.Client, state *syncState, invalidations chan<- string) *http.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
-	mux.HandleFunc("/v1/check", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/rlaas/v1/check", func(w http.ResponseWriter, r *http.Request) {
 		proxyCheck(w, r, cfg, client)
 	})
-	mux.HandleFunc("/v1/agent/invalidate", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/rlaas/v1/agent/invalidate", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		// Limit invalidation payloads to 64 KB.
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
 		var req struct {
 			PolicyID string `json:"policy_id"`
 		}
@@ -130,24 +145,52 @@ func buildServer(cfg agentConfig, client *http.Client, state *syncState, invalid
 		w.WriteHeader(http.StatusAccepted)
 		_ = json.NewEncoder(w).Encode(map[string]any{"queued": true, "policy_id": req.PolicyID})
 	})
-	mux.HandleFunc("/v1/agent/status", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/rlaas/v1/agent/status", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(state.snapshot())
 	})
-	return &http.Server{Addr: cfg.ListenAddr, Handler: mux}
+	return &http.Server{
+		Addr:           cfg.ListenAddr,
+		Handler:        panicRecovery(mux),
+		ReadTimeout:    5 * time.Second,
+		WriteTimeout:   10 * time.Second,
+		IdleTimeout:    120 * time.Second,
+		MaxHeaderBytes: 1 << 20,
+	}
 }
 
+// panicRecovery wraps a handler so a single panicking request doesn't crash
+// the agent process.
+func panicRecovery(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				slog.Error("agent panic recovered", "error", rec, "path", r.URL.Path)
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+// proxyCheck forwards rate-limit check requests to the upstream server.
 func proxyCheck(w http.ResponseWriter, r *http.Request, cfg agentConfig, client *http.Client) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	body, err := io.ReadAll(r.Body)
+	const maxProxyBody = 1 << 20
+	limited := io.LimitReader(r.Body, maxProxyBody+1)
+	body, err := io.ReadAll(limited)
 	if err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, cfg.UpstreamBase+"/v1/check", bytes.NewReader(body))
+	if int64(len(body)) > maxProxyBody {
+		http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+		return
+	}
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, cfg.UpstreamBase+"/rlaas/v1/check", bytes.NewReader(body))
 	if err != nil {
 		http.Error(w, "upstream request error", http.StatusInternalServerError)
 		return
@@ -168,6 +211,8 @@ func proxyCheck(w http.ResponseWriter, r *http.Request, cfg agentConfig, client 
 	_, _ = io.Copy(w, resp.Body)
 }
 
+// startSyncLoop periodically fetches policies from the upstream server and
+// reacts to invalidation signals from the control plane.
 func startSyncLoop(ctx context.Context, cfg agentConfig, client *http.Client, state *syncState, invalidations <-chan string) {
 	ticker := time.NewTicker(cfg.SyncInterval)
 	defer ticker.Stop()
@@ -193,8 +238,10 @@ func startSyncLoop(ctx context.Context, cfg agentConfig, client *http.Client, st
 	}
 }
 
+// fetchPolicySnapshot retrieves the full policy list from the upstream
+// server and updates sync state accordingly.
 func fetchPolicySnapshot(ctx context.Context, cfg agentConfig, client *http.Client, state *syncState) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.UpstreamBase+"/v1/policies", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cfg.UpstreamBase+"/rlaas/v1/policies", nil)
 	if err != nil {
 		state.markError(err.Error())
 		return
@@ -213,6 +260,8 @@ func fetchPolicySnapshot(ctx context.Context, cfg agentConfig, client *http.Clie
 	state.markError(fmt.Sprintf("policy sync status: %d", resp.StatusCode))
 }
 
+// defaultListen starts the agent HTTP server and blocks until a termination
+// signal is received, then gracefully drains connections.
 func defaultListen(s *http.Server) error {
 	errCh := make(chan error, 1)
 	go func() {

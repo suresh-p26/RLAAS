@@ -137,6 +137,8 @@ func (s *benchmarkPolicyStore) ListPolicyVersions(_ context.Context, policyID st
 	copy(out, versions)
 	return out, nil
 }
+func (s *benchmarkPolicyStore) Ping(context.Context) error { return nil }
+func (s *benchmarkPolicyStore) Close() error               { return nil }
 
 func benchmarkClient() *rlaas.Client {
 	basePolicy := model.Policy{
@@ -170,7 +172,7 @@ func BenchmarkHTTPCheckHandler(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		rr := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/v1/check", bytes.NewReader(payload))
+		req := httptest.NewRequest(http.MethodPost, "/rlaas/v1/check", bytes.NewReader(payload))
 		h.ServeHTTP(rr, req)
 		if rr.Code != http.StatusOK {
 			b.Fatalf("unexpected status: %d", rr.Code)
@@ -185,7 +187,7 @@ func BenchmarkHTTPAcquireReleaseHandlers(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		acqRR := httptest.NewRecorder()
-		acqReq := httptest.NewRequest(http.MethodPost, "/v1/acquire", bytes.NewReader(acqPayload))
+		acqReq := httptest.NewRequest(http.MethodPost, "/rlaas/v1/acquire", bytes.NewReader(acqPayload))
 		acquire.ServeHTTP(acqRR, acqReq)
 		if acqRR.Code != http.StatusOK {
 			b.Fatalf("unexpected acquire status: %d", acqRR.Code)
@@ -198,7 +200,7 @@ func BenchmarkHTTPAcquireReleaseHandlers(b *testing.B) {
 		}
 		relPayload, _ := json.Marshal(map[string]string{"lease_id": leaseID})
 		relRR := httptest.NewRecorder()
-		relReq := httptest.NewRequest(http.MethodPost, "/v1/release", bytes.NewReader(relPayload))
+		relReq := httptest.NewRequest(http.MethodPost, "/rlaas/v1/release", bytes.NewReader(relPayload))
 		release.ServeHTTP(relRR, relReq)
 		if relRR.Code != http.StatusOK {
 			b.Fatalf("unexpected release status: %d", relRR.Code)
@@ -258,7 +260,7 @@ func BenchmarkHTTPPoliciesHandler(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			rr := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/v1/policies", nil)
+			req := httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies", nil)
 			h.ServeHTTP(rr, req)
 			if rr.Code != http.StatusOK {
 				b.Fatalf("unexpected status: %d", rr.Code)
@@ -271,7 +273,7 @@ func BenchmarkHTTPPoliciesHandler(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			rr := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/v1/policies/p1", nil)
+			req := httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies/p1", nil)
 			h.ServeHTTP(rr, req)
 			if rr.Code != http.StatusOK {
 				b.Fatalf("unexpected status: %d", rr.Code)
@@ -287,7 +289,7 @@ func BenchmarkHTTPPoliciesHandler(b *testing.B) {
 			candidate.PolicyID = fmt.Sprintf("p-create-%d", i)
 			payload, _ := json.Marshal(candidate)
 			rr := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/v1/policies", bytes.NewReader(payload))
+			req := httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies", bytes.NewReader(payload))
 			h.ServeHTTP(rr, req)
 			if rr.Code != http.StatusCreated {
 				b.Fatalf("unexpected status: %d", rr.Code)
@@ -300,7 +302,7 @@ func BenchmarkHTTPPoliciesHandler(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			rr := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPut, "/v1/policies/p2", bytes.NewReader(updateBody))
+			req := httptest.NewRequest(http.MethodPut, "/rlaas/v1/policies/p2", bytes.NewReader(updateBody))
 			h.ServeHTTP(rr, req)
 			if rr.Code != http.StatusOK {
 				b.Fatalf("unexpected status: %d", rr.Code)
@@ -319,7 +321,7 @@ func BenchmarkHTTPPoliciesHandler(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			rr := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/v1/policies/p2/audit", nil)
+			req := httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies/p2/audit", nil)
 			h.ServeHTTP(rr, req)
 			if rr.Code != http.StatusOK {
 				b.Fatalf("unexpected status: %d", rr.Code)
@@ -338,7 +340,7 @@ func BenchmarkHTTPPoliciesHandler(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			rr := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/v1/policies/p2/versions", nil)
+			req := httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies/p2/versions", nil)
 			h.ServeHTTP(rr, req)
 			if rr.Code != http.StatusOK {
 				b.Fatalf("unexpected status: %d", rr.Code)
@@ -351,7 +353,7 @@ func BenchmarkHTTPPoliciesHandler(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			rr := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/v1/policies/validate", bytes.NewReader(validateBody))
+			req := httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/validate", bytes.NewReader(validateBody))
 			h.ServeHTTP(rr, req)
 			if rr.Code != http.StatusOK {
 				b.Fatalf("unexpected status: %d", rr.Code)
@@ -364,7 +366,7 @@ func BenchmarkHTTPPoliciesHandler(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			rr := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/v1/policies/p2/rollout", bytes.NewReader(rolloutBody))
+			req := httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/p2/rollout", bytes.NewReader(rolloutBody))
 			h.ServeHTTP(rr, req)
 			if rr.Code != http.StatusOK {
 				b.Fatalf("unexpected status: %d", rr.Code)
@@ -379,7 +381,7 @@ func BenchmarkHTTPPoliciesHandler(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			rr := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodPost, "/v1/policies/p2/rollback", bytes.NewReader(rollbackBody))
+			req := httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/p2/rollback", bytes.NewReader(rollbackBody))
 			h.ServeHTTP(rr, req)
 			if rr.Code != http.StatusOK {
 				b.Fatalf("unexpected status: %d", rr.Code)
@@ -393,13 +395,13 @@ func BenchmarkHTTPPoliciesHandler(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			rr := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodDelete, "/v1/policies/p2", nil)
+			req := httptest.NewRequest(http.MethodDelete, "/rlaas/v1/policies/p2", nil)
 			h.ServeHTTP(rr, req)
 			if rr.Code != http.StatusNoContent {
 				b.Fatalf("unexpected status: %d", rr.Code)
 			}
 			createRR := httptest.NewRecorder()
-			createReq := httptest.NewRequest(http.MethodPost, "/v1/policies", bytes.NewReader(createBody))
+			createReq := httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies", bytes.NewReader(createBody))
 			h.ServeHTTP(createRR, createReq)
 		}
 	})

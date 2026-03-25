@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Kafka adapter** (`internal/adapter/kafka/`) — per-topic, per-consumer-group event stream throttling
 
 ### APIs
-- **HTTP REST API**: `/v1/check`, `/v1/acquire`, `/v1/release`, `/v1/policies`, `/v1/analytics/summary`
+- **HTTP REST API**: `/rlaas/v1/check`, `/rlaas/v1/acquire`, `/rlaas/v1/release`, `/rlaas/v1/policies`, `/rlaas/v1/analytics/summary`
 - **gRPC API**: `RateLimitService` with proto definitions
 - **HTTP Middleware**: `X-RateLimit-*` headers, automatic enforcement
 - **gRPC Interceptor**: Unary server interceptor for gRPC services

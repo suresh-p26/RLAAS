@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
 	"github.com/rlaas-io/rlaas/internal/store/counter/memory"
 	filestore "github.com/rlaas-io/rlaas/internal/store/policy/file"
 	"github.com/rlaas-io/rlaas/pkg/model"
 	"github.com/rlaas-io/rlaas/pkg/rlaas"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 )
 
 func newEvalForControlplane(t *testing.T) *rlaas.Client {
@@ -25,7 +26,7 @@ func TestAcquireReleaseHandlers(t *testing.T) {
 
 	payload, _ := json.Marshal(model.RequestContext{SignalType: "job", Operation: "op1"})
 	rr := httptest.NewRecorder()
-	acquire.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/acquire", bytes.NewBuffer(payload)))
+	acquire.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/rlaas/v1/acquire", bytes.NewBuffer(payload)))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200 from acquire")
 	}
@@ -34,13 +35,13 @@ func TestAcquireReleaseHandlers(t *testing.T) {
 	leaseID, _ := ar["lease_id"].(string)
 
 	rrBad := httptest.NewRecorder()
-	release.ServeHTTP(rrBad, httptest.NewRequest(http.MethodPost, "/v1/release", bytes.NewBufferString(`{"lease_id":""}`)))
+	release.ServeHTTP(rrBad, httptest.NewRequest(http.MethodPost, "/rlaas/v1/release", bytes.NewBufferString(`{"lease_id":""}`)))
 	if rrBad.Code != http.StatusBadRequest {
 		t.Fatalf("expected bad request for empty lease")
 	}
 
 	rrNotFound := httptest.NewRecorder()
-	release.ServeHTTP(rrNotFound, httptest.NewRequest(http.MethodPost, "/v1/release", bytes.NewBufferString(`{"lease_id":"unknown"}`)))
+	release.ServeHTTP(rrNotFound, httptest.NewRequest(http.MethodPost, "/rlaas/v1/release", bytes.NewBufferString(`{"lease_id":"unknown"}`)))
 	if rrNotFound.Code != http.StatusNotFound {
 		t.Fatalf("expected not found for unknown lease")
 	}
@@ -48,7 +49,7 @@ func TestAcquireReleaseHandlers(t *testing.T) {
 	if leaseID != "" {
 		rr2 := httptest.NewRecorder()
 		releasePayload, _ := json.Marshal(map[string]string{"lease_id": leaseID})
-		release.ServeHTTP(rr2, httptest.NewRequest(http.MethodPost, "/v1/release", bytes.NewBuffer(releasePayload)))
+		release.ServeHTTP(rr2, httptest.NewRequest(http.MethodPost, "/rlaas/v1/release", bytes.NewBuffer(releasePayload)))
 		if rr2.Code != http.StatusOK {
 			t.Fatalf("expected 200 from release")
 		}
@@ -68,19 +69,21 @@ func (policyStoreErr) DeletePolicy(context.Context, string) error       { return
 func (policyStoreErr) ListPolicies(context.Context, map[string]string) ([]model.Policy, error) {
 	return nil, context.Canceled
 }
+func (policyStoreErr) Ping(context.Context) error { return context.Canceled }
+func (policyStoreErr) Close() error               { return nil }
 
 func TestPoliciesHandlerCRUD(t *testing.T) {
 	store := filestore.New(t.TempDir() + "/policies.json")
 	h := PoliciesHandler(store)
 
 	rrGet := httptest.NewRecorder()
-	h.ServeHTTP(rrGet, httptest.NewRequest(http.MethodGet, "/v1/policies", nil))
+	h.ServeHTTP(rrGet, httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies", nil))
 	if rrGet.Code != http.StatusOK {
 		t.Fatalf("expected 200 from list")
 	}
 
 	rrPostBad := httptest.NewRecorder()
-	h.ServeHTTP(rrPostBad, httptest.NewRequest(http.MethodPost, "/v1/policies", bytes.NewBufferString("{")))
+	h.ServeHTTP(rrPostBad, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies", bytes.NewBufferString("{")))
 	if rrPostBad.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for bad post")
 	}
@@ -88,25 +91,25 @@ func TestPoliciesHandlerCRUD(t *testing.T) {
 	p := model.Policy{PolicyID: "p1", Enabled: true}
 	body, _ := json.Marshal(p)
 	rrPost := httptest.NewRecorder()
-	h.ServeHTTP(rrPost, httptest.NewRequest(http.MethodPost, "/v1/policies", bytes.NewBuffer(body)))
+	h.ServeHTTP(rrPost, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies", bytes.NewBuffer(body)))
 	if rrPost.Code != http.StatusCreated {
 		t.Fatalf("expected 201 from create")
 	}
 
 	rrPut := httptest.NewRecorder()
-	h.ServeHTTP(rrPut, httptest.NewRequest(http.MethodPut, "/v1/policies/p1", bytes.NewBuffer(body)))
+	h.ServeHTTP(rrPut, httptest.NewRequest(http.MethodPut, "/rlaas/v1/policies/p1", bytes.NewBuffer(body)))
 	if rrPut.Code != http.StatusOK {
 		t.Fatalf("expected 200 from put")
 	}
 
 	rrDelete := httptest.NewRecorder()
-	h.ServeHTTP(rrDelete, httptest.NewRequest(http.MethodDelete, "/v1/policies/p1", nil))
+	h.ServeHTTP(rrDelete, httptest.NewRequest(http.MethodDelete, "/rlaas/v1/policies/p1", nil))
 	if rrDelete.Code != http.StatusNoContent {
 		t.Fatalf("expected 204 from delete")
 	}
 
 	rrNotFound := httptest.NewRecorder()
-	h.ServeHTTP(rrNotFound, httptest.NewRequest(http.MethodPatch, "/v1/policies", nil))
+	h.ServeHTTP(rrNotFound, httptest.NewRequest(http.MethodPatch, "/rlaas/v1/policies", nil))
 	if rrNotFound.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for unsupported route")
 	}
@@ -115,20 +118,20 @@ func TestPoliciesHandlerCRUD(t *testing.T) {
 func TestPoliciesHandlerStoreErrors(t *testing.T) {
 	h := PoliciesHandler(policyStoreErr{})
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/v1/policies", nil))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies", nil))
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 from list error")
 	}
 
 	body, _ := json.Marshal(model.Policy{PolicyID: "p1"})
 	rr2 := httptest.NewRecorder()
-	h.ServeHTTP(rr2, httptest.NewRequest(http.MethodPost, "/v1/policies", bytes.NewBuffer(body)))
+	h.ServeHTTP(rr2, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies", bytes.NewBuffer(body)))
 	if rr2.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 from create error")
 	}
 
 	rr3 := httptest.NewRecorder()
-	h.ServeHTTP(rr3, httptest.NewRequest(http.MethodDelete, "/v1/policies/p1", nil))
+	h.ServeHTTP(rr3, httptest.NewRequest(http.MethodDelete, "/rlaas/v1/policies/p1", nil))
 	if rr3.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 from delete error")
 	}
@@ -140,7 +143,7 @@ func TestPoliciesHandlerValidateAndRollback(t *testing.T) {
 
 	invalidBody := bytes.NewBufferString(`{"name":"x","action":"deny"}`)
 	rrInvalid := httptest.NewRecorder()
-	h.ServeHTTP(rrInvalid, httptest.NewRequest(http.MethodPost, "/v1/policies/validate", invalidBody))
+	h.ServeHTTP(rrInvalid, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/validate", invalidBody))
 	if rrInvalid.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for invalid policy validate")
 	}
@@ -148,13 +151,13 @@ func TestPoliciesHandlerValidateAndRollback(t *testing.T) {
 	valid := model.Policy{PolicyID: "p1", Name: "safe", Enabled: true, Action: model.ActionDeny, Algorithm: model.AlgorithmConfig{Type: model.AlgoFixedWindow, Limit: 10}}
 	validBody, _ := json.Marshal(valid)
 	rrValid := httptest.NewRecorder()
-	h.ServeHTTP(rrValid, httptest.NewRequest(http.MethodPost, "/v1/policies/validate", bytes.NewBuffer(validBody)))
+	h.ServeHTTP(rrValid, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/validate", bytes.NewBuffer(validBody)))
 	if rrValid.Code != http.StatusOK || !bytes.Contains(rrValid.Body.Bytes(), []byte(`"valid":true`)) {
 		t.Fatalf("expected validate success")
 	}
 
 	rrCreate := httptest.NewRecorder()
-	h.ServeHTTP(rrCreate, httptest.NewRequest(http.MethodPost, "/v1/policies", bytes.NewBuffer(validBody)))
+	h.ServeHTTP(rrCreate, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies", bytes.NewBuffer(validBody)))
 	if rrCreate.Code != http.StatusCreated {
 		t.Fatalf("expected create success")
 	}
@@ -163,13 +166,13 @@ func TestPoliciesHandlerValidateAndRollback(t *testing.T) {
 	updated.Name = "changed"
 	updatedBody, _ := json.Marshal(updated)
 	rrUpdate := httptest.NewRecorder()
-	h.ServeHTTP(rrUpdate, httptest.NewRequest(http.MethodPut, "/v1/policies/p1", bytes.NewBuffer(updatedBody)))
+	h.ServeHTTP(rrUpdate, httptest.NewRequest(http.MethodPut, "/rlaas/v1/policies/p1", bytes.NewBuffer(updatedBody)))
 	if rrUpdate.Code != http.StatusOK {
 		t.Fatalf("expected update success")
 	}
 
 	rrRollback := httptest.NewRecorder()
-	h.ServeHTTP(rrRollback, httptest.NewRequest(http.MethodPost, "/v1/policies/p1/rollback", bytes.NewBufferString(`{"version":1}`)))
+	h.ServeHTTP(rrRollback, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/p1/rollback", bytes.NewBufferString(`{"version":1}`)))
 	if rrRollback.Code != http.StatusOK {
 		t.Fatalf("expected rollback success, got %d", rrRollback.Code)
 	}
@@ -202,13 +205,13 @@ func TestPoliciesHandlerGetByID(t *testing.T) {
 	p := model.Policy{PolicyID: "p1", Name: "test", Enabled: true}
 	body, _ := json.Marshal(p)
 	rrPost := httptest.NewRecorder()
-	h.ServeHTTP(rrPost, httptest.NewRequest(http.MethodPost, "/v1/policies", bytes.NewBuffer(body)))
+	h.ServeHTTP(rrPost, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies", bytes.NewBuffer(body)))
 	if rrPost.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d", rrPost.Code)
 	}
 
 	rrGet := httptest.NewRecorder()
-	h.ServeHTTP(rrGet, httptest.NewRequest(http.MethodGet, "/v1/policies/p1", nil))
+	h.ServeHTTP(rrGet, httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies/p1", nil))
 	if rrGet.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rrGet.Code)
 	}
@@ -220,14 +223,14 @@ func TestPoliciesHandlerGetByID(t *testing.T) {
 
 	// Missing ID
 	rrEmpty := httptest.NewRecorder()
-	h.ServeHTTP(rrEmpty, httptest.NewRequest(http.MethodGet, "/v1/policies/", nil))
+	h.ServeHTTP(rrEmpty, httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies/", nil))
 	if rrEmpty.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for empty id, got %d", rrEmpty.Code)
 	}
 
 	// Not found
 	rrMissing := httptest.NewRecorder()
-	h.ServeHTTP(rrMissing, httptest.NewRequest(http.MethodGet, "/v1/policies/unknown", nil))
+	h.ServeHTTP(rrMissing, httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies/unknown", nil))
 	if rrMissing.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rrMissing.Code)
 	}
@@ -240,7 +243,7 @@ func TestPoliciesHandlerAuditAndVersions(t *testing.T) {
 	p := model.Policy{PolicyID: "p1", Name: "v1", Enabled: true}
 	body, _ := json.Marshal(p)
 	rrCreate := httptest.NewRecorder()
-	h.ServeHTTP(rrCreate, httptest.NewRequest(http.MethodPost, "/v1/policies", bytes.NewBuffer(body)))
+	h.ServeHTTP(rrCreate, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies", bytes.NewBuffer(body)))
 	if rrCreate.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d", rrCreate.Code)
 	}
@@ -248,14 +251,14 @@ func TestPoliciesHandlerAuditAndVersions(t *testing.T) {
 	p.Name = "v2"
 	body2, _ := json.Marshal(p)
 	rrUpdate := httptest.NewRecorder()
-	h.ServeHTTP(rrUpdate, httptest.NewRequest(http.MethodPut, "/v1/policies/p1", bytes.NewBuffer(body2)))
+	h.ServeHTTP(rrUpdate, httptest.NewRequest(http.MethodPut, "/rlaas/v1/policies/p1", bytes.NewBuffer(body2)))
 	if rrUpdate.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rrUpdate.Code)
 	}
 
 	// Audit
 	rrAudit := httptest.NewRecorder()
-	h.ServeHTTP(rrAudit, httptest.NewRequest(http.MethodGet, "/v1/policies/p1/audit", nil))
+	h.ServeHTTP(rrAudit, httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies/p1/audit", nil))
 	if rrAudit.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rrAudit.Code)
 	}
@@ -267,7 +270,7 @@ func TestPoliciesHandlerAuditAndVersions(t *testing.T) {
 
 	// Versions
 	rrVer := httptest.NewRecorder()
-	h.ServeHTTP(rrVer, httptest.NewRequest(http.MethodGet, "/v1/policies/p1/versions", nil))
+	h.ServeHTTP(rrVer, httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies/p1/versions", nil))
 	if rrVer.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rrVer.Code)
 	}
@@ -279,14 +282,14 @@ func TestPoliciesHandlerAuditAndVersions(t *testing.T) {
 
 	// Empty id for audit
 	rrAuditEmpty := httptest.NewRecorder()
-	h.ServeHTTP(rrAuditEmpty, httptest.NewRequest(http.MethodGet, "/v1/policies//audit", nil))
+	h.ServeHTTP(rrAuditEmpty, httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies//audit", nil))
 	if rrAuditEmpty.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for empty audit id, got %d", rrAuditEmpty.Code)
 	}
 
 	// Empty id for versions
 	rrVerEmpty := httptest.NewRecorder()
-	h.ServeHTTP(rrVerEmpty, httptest.NewRequest(http.MethodGet, "/v1/policies//versions", nil))
+	h.ServeHTTP(rrVerEmpty, httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies//versions", nil))
 	if rrVerEmpty.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for empty versions id, got %d", rrVerEmpty.Code)
 	}
@@ -299,14 +302,14 @@ func TestPoliciesHandlerRollout(t *testing.T) {
 	p := model.Policy{PolicyID: "p1", Name: "test", Enabled: true, RolloutPercent: 0}
 	body, _ := json.Marshal(p)
 	rrCreate := httptest.NewRecorder()
-	h.ServeHTTP(rrCreate, httptest.NewRequest(http.MethodPost, "/v1/policies", bytes.NewBuffer(body)))
+	h.ServeHTTP(rrCreate, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies", bytes.NewBuffer(body)))
 	if rrCreate.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d", rrCreate.Code)
 	}
 
 	// Valid rollout
 	rrRollout := httptest.NewRecorder()
-	h.ServeHTTP(rrRollout, httptest.NewRequest(http.MethodPost, "/v1/policies/p1/rollout", bytes.NewBufferString(`{"rollout_percent":50}`)))
+	h.ServeHTTP(rrRollout, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/p1/rollout", bytes.NewBufferString(`{"rollout_percent":50}`)))
 	if rrRollout.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rrRollout.Code)
 	}
@@ -318,28 +321,28 @@ func TestPoliciesHandlerRollout(t *testing.T) {
 
 	// Invalid percent
 	rrBad := httptest.NewRecorder()
-	h.ServeHTTP(rrBad, httptest.NewRequest(http.MethodPost, "/v1/policies/p1/rollout", bytes.NewBufferString(`{"rollout_percent":200}`)))
+	h.ServeHTTP(rrBad, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/p1/rollout", bytes.NewBufferString(`{"rollout_percent":200}`)))
 	if rrBad.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rrBad.Code)
 	}
 
 	// Missing id
 	rrEmpty := httptest.NewRecorder()
-	h.ServeHTTP(rrEmpty, httptest.NewRequest(http.MethodPost, "/v1/policies//rollout", bytes.NewBufferString(`{"rollout_percent":10}`)))
+	h.ServeHTTP(rrEmpty, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies//rollout", bytes.NewBufferString(`{"rollout_percent":10}`)))
 	if rrEmpty.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for empty id, got %d", rrEmpty.Code)
 	}
 
 	// Not found
 	rrNotFound := httptest.NewRecorder()
-	h.ServeHTTP(rrNotFound, httptest.NewRequest(http.MethodPost, "/v1/policies/unknown/rollout", bytes.NewBufferString(`{"rollout_percent":10}`)))
+	h.ServeHTTP(rrNotFound, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/unknown/rollout", bytes.NewBufferString(`{"rollout_percent":10}`)))
 	if rrNotFound.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rrNotFound.Code)
 	}
 
 	// Bad JSON
 	rrBadJSON := httptest.NewRecorder()
-	h.ServeHTTP(rrBadJSON, httptest.NewRequest(http.MethodPost, "/v1/policies/p1/rollout", bytes.NewBufferString("{")))
+	h.ServeHTTP(rrBadJSON, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/p1/rollout", bytes.NewBufferString("{")))
 	if rrBadJSON.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rrBadJSON.Code)
 	}
@@ -363,14 +366,14 @@ func TestPoliciesHandlerWithHooksFiresEvents(t *testing.T) {
 	p := model.Policy{PolicyID: "p1", Name: "test", Enabled: true, Action: model.ActionDeny, Algorithm: model.AlgorithmConfig{Type: model.AlgoFixedWindow, Limit: 10}}
 	body, _ := json.Marshal(p)
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/policies", bytes.NewBuffer(body)))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies", bytes.NewBuffer(body)))
 	if rr.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d", rr.Code)
 	}
 
 	// List (triggers analytics)
 	rr2 := httptest.NewRecorder()
-	h.ServeHTTP(rr2, httptest.NewRequest(http.MethodGet, "/v1/policies", nil))
+	h.ServeHTTP(rr2, httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies", nil))
 	if rr2.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr2.Code)
 	}
@@ -379,21 +382,21 @@ func TestPoliciesHandlerWithHooksFiresEvents(t *testing.T) {
 	p.Name = "updated"
 	body2, _ := json.Marshal(p)
 	rr3 := httptest.NewRecorder()
-	h.ServeHTTP(rr3, httptest.NewRequest(http.MethodPut, "/v1/policies/p1", bytes.NewBuffer(body2)))
+	h.ServeHTTP(rr3, httptest.NewRequest(http.MethodPut, "/rlaas/v1/policies/p1", bytes.NewBuffer(body2)))
 	if rr3.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr3.Code)
 	}
 
 	// Delete
 	rr4 := httptest.NewRecorder()
-	h.ServeHTTP(rr4, httptest.NewRequest(http.MethodDelete, "/v1/policies/p1", nil))
+	h.ServeHTTP(rr4, httptest.NewRequest(http.MethodDelete, "/rlaas/v1/policies/p1", nil))
 	if rr4.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", rr4.Code)
 	}
 
 	// Validate
 	rr5 := httptest.NewRecorder()
-	h.ServeHTTP(rr5, httptest.NewRequest(http.MethodPost, "/v1/policies/validate", bytes.NewBuffer(body)))
+	h.ServeHTTP(rr5, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/validate", bytes.NewBuffer(body)))
 	if rr5.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr5.Code)
 	}
@@ -410,7 +413,7 @@ func TestPoliciesHandlerStoreErrorsPut(t *testing.T) {
 	h := PoliciesHandler(policyStoreErr{})
 	body, _ := json.Marshal(model.Policy{PolicyID: "p1"})
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPut, "/v1/policies/p1", bytes.NewBuffer(body)))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPut, "/rlaas/v1/policies/p1", bytes.NewBuffer(body)))
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 from put error, got %d", rr.Code)
 	}
@@ -419,7 +422,7 @@ func TestPoliciesHandlerStoreErrorsPut(t *testing.T) {
 func TestPoliciesHandlerStoreErrorsGetByID(t *testing.T) {
 	h := PoliciesHandler(policyStoreErr{})
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/v1/policies/p1", nil))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/rlaas/v1/policies/p1", nil))
 	if rr.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 from get error, got %d", rr.Code)
 	}
@@ -432,7 +435,7 @@ func TestPoliciesHandlerAutoGeneratesPolicyID(t *testing.T) {
 	p := model.Policy{Name: "no-id", Enabled: true}
 	body, _ := json.Marshal(p)
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/policies", bytes.NewBuffer(body)))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies", bytes.NewBuffer(body)))
 	if rr.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d", rr.Code)
 	}
@@ -447,7 +450,7 @@ func TestPoliciesHandlerDeleteMissingID(t *testing.T) {
 	store := filestore.New(t.TempDir() + "/policies.json")
 	h := PoliciesHandler(store)
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodDelete, "/v1/policies/", nil))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodDelete, "/rlaas/v1/policies/", nil))
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for empty delete id, got %d", rr.Code)
 	}
@@ -458,7 +461,7 @@ func TestPoliciesHandlerPutMissingID(t *testing.T) {
 	h := PoliciesHandler(store)
 	body, _ := json.Marshal(model.Policy{Name: "x"})
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPut, "/v1/policies/", bytes.NewBuffer(body)))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPut, "/rlaas/v1/policies/", bytes.NewBuffer(body)))
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
@@ -468,7 +471,7 @@ func TestPoliciesHandlerPutBadJSON(t *testing.T) {
 	store := filestore.New(t.TempDir() + "/policies.json")
 	h := PoliciesHandler(store)
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPut, "/v1/policies/p1", bytes.NewBufferString("{")))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPut, "/rlaas/v1/policies/p1", bytes.NewBufferString("{")))
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
@@ -480,28 +483,28 @@ func TestPoliciesHandlerValidateMissingFields(t *testing.T) {
 
 	// missing algorithm type
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/policies/validate", bytes.NewBufferString(`{"name":"x","action":"deny","algorithm":{"limit":10}}`)))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/validate", bytes.NewBufferString(`{"name":"x","action":"deny","algorithm":{"limit":10}}`)))
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 
 	// negative limit
 	rr2 := httptest.NewRecorder()
-	h.ServeHTTP(rr2, httptest.NewRequest(http.MethodPost, "/v1/policies/validate", bytes.NewBufferString(`{"name":"x","action":"deny","algorithm":{"type":"fixed_window","limit":-1}}`)))
+	h.ServeHTTP(rr2, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/validate", bytes.NewBufferString(`{"name":"x","action":"deny","algorithm":{"type":"fixed_window","limit":-1}}`)))
 	if rr2.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for negative limit, got %d", rr2.Code)
 	}
 
 	// bad rollout percent
 	rr3 := httptest.NewRecorder()
-	h.ServeHTTP(rr3, httptest.NewRequest(http.MethodPost, "/v1/policies/validate", bytes.NewBufferString(`{"name":"x","action":"deny","algorithm":{"type":"fixed_window","limit":10},"rollout_percent":200}`)))
+	h.ServeHTTP(rr3, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/validate", bytes.NewBufferString(`{"name":"x","action":"deny","algorithm":{"type":"fixed_window","limit":10},"rollout_percent":200}`)))
 	if rr3.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for bad rollout, got %d", rr3.Code)
 	}
 
 	// bad JSON
 	rr4 := httptest.NewRecorder()
-	h.ServeHTTP(rr4, httptest.NewRequest(http.MethodPost, "/v1/policies/validate", bytes.NewBufferString("{")))
+	h.ServeHTTP(rr4, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/validate", bytes.NewBufferString("{")))
 	if rr4.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr4.Code)
 	}
@@ -513,21 +516,21 @@ func TestPoliciesHandlerRollbackErrors(t *testing.T) {
 
 	// Empty id
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/policies//rollback", bytes.NewBufferString(`{"version":1}`)))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies//rollback", bytes.NewBufferString(`{"version":1}`)))
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr.Code)
 	}
 
 	// Bad JSON
 	rr2 := httptest.NewRecorder()
-	h.ServeHTTP(rr2, httptest.NewRequest(http.MethodPost, "/v1/policies/p1/rollback", bytes.NewBufferString("{")))
+	h.ServeHTTP(rr2, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/p1/rollback", bytes.NewBufferString("{")))
 	if rr2.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rr2.Code)
 	}
 
 	// Missing policy (no versions)
 	rr3 := httptest.NewRecorder()
-	h.ServeHTTP(rr3, httptest.NewRequest(http.MethodPost, "/v1/policies/unknown/rollback", bytes.NewBufferString(`{"version":1}`)))
+	h.ServeHTTP(rr3, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/unknown/rollback", bytes.NewBufferString(`{"version":1}`)))
 	if rr3.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rr3.Code)
 	}
@@ -536,10 +539,10 @@ func TestPoliciesHandlerRollbackErrors(t *testing.T) {
 	p := model.Policy{PolicyID: "p1", Name: "v1", Enabled: true}
 	body, _ := json.Marshal(p)
 	rrCreate := httptest.NewRecorder()
-	h.ServeHTTP(rrCreate, httptest.NewRequest(http.MethodPost, "/v1/policies", bytes.NewBuffer(body)))
+	h.ServeHTTP(rrCreate, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies", bytes.NewBuffer(body)))
 
 	rr4 := httptest.NewRecorder()
-	h.ServeHTTP(rr4, httptest.NewRequest(http.MethodPost, "/v1/policies/p1/rollback", bytes.NewBufferString(`{"version":999}`)))
+	h.ServeHTTP(rr4, httptest.NewRequest(http.MethodPost, "/rlaas/v1/policies/p1/rollback", bytes.NewBufferString(`{"version":999}`)))
 	if rr4.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for nonexistent version, got %d", rr4.Code)
 	}
@@ -562,14 +565,14 @@ func TestAcquireHandlerStandalone(t *testing.T) {
 	h := AcquireHandler(eval)
 	payload, _ := json.Marshal(model.RequestContext{SignalType: "job", Operation: "op1"})
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/acquire", bytes.NewBuffer(payload)))
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/rlaas/v1/acquire", bytes.NewBuffer(payload)))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 
 	// Bad JSON
 	rrBad := httptest.NewRecorder()
-	h.ServeHTTP(rrBad, httptest.NewRequest(http.MethodPost, "/v1/acquire", bytes.NewBufferString("{")))
+	h.ServeHTTP(rrBad, httptest.NewRequest(http.MethodPost, "/rlaas/v1/acquire", bytes.NewBufferString("{")))
 	if rrBad.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rrBad.Code)
 	}
@@ -581,14 +584,14 @@ func TestReleaseHandlerStandalone(t *testing.T) {
 
 	// Bad JSON
 	rrBad := httptest.NewRecorder()
-	h.ServeHTTP(rrBad, httptest.NewRequest(http.MethodPost, "/v1/release", bytes.NewBufferString("{")))
+	h.ServeHTTP(rrBad, httptest.NewRequest(http.MethodPost, "/rlaas/v1/release", bytes.NewBufferString("{")))
 	if rrBad.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rrBad.Code)
 	}
 
 	// Unknown lease
 	rrNotFound := httptest.NewRecorder()
-	h.ServeHTTP(rrNotFound, httptest.NewRequest(http.MethodPost, "/v1/release", bytes.NewBufferString(`{"lease_id":"unknown"}`)))
+	h.ServeHTTP(rrNotFound, httptest.NewRequest(http.MethodPost, "/rlaas/v1/release", bytes.NewBufferString(`{"lease_id":"unknown"}`)))
 	if rrNotFound.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rrNotFound.Code)
 	}

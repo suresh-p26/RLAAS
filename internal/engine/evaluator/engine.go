@@ -3,14 +3,15 @@ package evaluator
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
+	"time"
+
 	"github.com/rlaas-io/rlaas/internal/algorithm"
 	"github.com/rlaas-io/rlaas/internal/engine/matcher"
 	"github.com/rlaas-io/rlaas/internal/key"
 	"github.com/rlaas-io/rlaas/internal/store"
 	cache "github.com/rlaas-io/rlaas/internal/store/cache"
 	"github.com/rlaas-io/rlaas/pkg/model"
-	"hash/fnv"
-	"time"
 )
 
 // Engine is the main decision contract used by SDK and service layers.
@@ -82,7 +83,12 @@ func (e *DefaultEngine) StartConcurrencyLease(ctx context.Context, req model.Req
 	if limit <= 0 {
 		limit = 1
 	}
-	ok, current, err := e.CounterStore.AcquireLease(ctx, keyStr, limit, 2*time.Minute)
+	leaseTTL := 2 * time.Minute
+	if policy.Algorithm.LeaseTTL > 0 {
+		leaseTTL = time.Duration(policy.Algorithm.LeaseTTL) * time.Second
+	}
+	leaseKey := keyStr + ":concurrency"
+	ok, current, err := e.CounterStore.AcquireLease(ctx, leaseKey, limit, leaseTTL)
 	if err != nil {
 		d, _ := e.handleFailure(*policy, keyStr, err.Error())
 		return d, func() error { return nil }, nil
@@ -99,7 +105,7 @@ func (e *DefaultEngine) StartConcurrencyLease(ctx context.Context, req model.Req
 		return d, func() error { return nil }, nil
 	}
 	release := func() error {
-		return e.CounterStore.ReleaseLease(context.Background(), keyStr)
+		return e.CounterStore.ReleaseLease(context.Background(), leaseKey)
 	}
 	d := model.Decision{Allowed: true, Action: model.ActionAllow, Reason: "concurrency_lease_acquired", MatchedPolicyID: policy.PolicyID, LimitKey: keyStr, Remaining: maxInt64(limit-current, 0)}
 	if policy.EnforcementMode == model.ShadowMode {
@@ -139,7 +145,7 @@ func (e *DefaultEngine) pickPolicy(ctx context.Context, req model.RequestContext
 		if p.ValidToUnix > 0 && now.Unix() > p.ValidToUnix {
 			continue
 		}
-		if p.RolloutPercent >= 0 && p.RolloutPercent < 100 && !isInRollout(p, req) {
+		if p.RolloutPercent > 0 && p.RolloutPercent < 100 && !isInRollout(p, req) {
 			continue
 		}
 		candidates = append(candidates, p)
