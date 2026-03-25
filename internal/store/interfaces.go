@@ -2,8 +2,9 @@ package store
 
 import (
 	"context"
-	"github.com/rlaas-io/rlaas/pkg/model"
 	"time"
+
+	"github.com/rlaas-io/rlaas/pkg/model"
 )
 
 // CounterStore provides primitives used by different rate limit algorithms.
@@ -20,6 +21,12 @@ type CounterStore interface {
 
 	AcquireLease(ctx context.Context, key string, limit int64, ttl time.Duration) (bool, int64, error)
 	ReleaseLease(ctx context.Context, key string) error
+
+	// Ping verifies the store backend is reachable.
+	// Implementations that don't have a network backend may return nil.
+	Ping(ctx context.Context) error
+	// Close releases resources held by the store.
+	Close() error
 }
 
 // PolicyStore loads and manages policy definitions.
@@ -29,4 +36,9 @@ type PolicyStore interface {
 	UpsertPolicy(ctx context.Context, p model.Policy) error
 	DeletePolicy(ctx context.Context, policyID string) error
 	ListPolicies(ctx context.Context, filter map[string]string) ([]model.Policy, error)
+
+	// Ping verifies the store backend is reachable.
+	Ping(ctx context.Context) error
+	// Close releases resources held by the store.
+	Close() error
 }

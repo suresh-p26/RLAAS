@@ -4,9 +4,10 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"github.com/rlaas-io/rlaas/pkg/model"
 	"sort"
 	"strings"
+
+	"github.com/rlaas-io/rlaas/pkg/model"
 )
 
 // Builder generates deterministic counter keys from policy scope and request values.

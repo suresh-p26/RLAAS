@@ -32,72 +32,72 @@ public class RlaasClient {
 
     public Decision checkLimit(CheckRequest request) throws IOException, InterruptedException {
         String body = objectMapper.writeValueAsString(request);
-        HttpResponse<String> response = post("/v1/check", body);
+        HttpResponse<String> response = post("/rlaas/v1/check", body);
         return readJson(response, Decision.class);
     }
 
     public Map<String, Object> acquire(Map<String, Object> request) throws IOException, InterruptedException {
-        HttpResponse<String> response = post("/v1/acquire", objectMapper.writeValueAsString(request));
+        HttpResponse<String> response = post("/rlaas/v1/acquire", objectMapper.writeValueAsString(request));
         return readMap(response);
     }
 
     public Map<String, Object> release(String leaseId) throws IOException, InterruptedException {
-        HttpResponse<String> response = post("/v1/release", objectMapper.writeValueAsString(Map.of("lease_id", leaseId)));
+        HttpResponse<String> response = post("/rlaas/v1/release", objectMapper.writeValueAsString(Map.of("lease_id", leaseId)));
         return readMap(response);
     }
 
     public List<Map<String, Object>> listPolicies() throws IOException, InterruptedException {
-        HttpResponse<String> response = get("/v1/policies");
+        HttpResponse<String> response = get("/rlaas/v1/policies");
         return readList(response);
     }
 
     public Map<String, Object> getPolicy(String policyId) throws IOException, InterruptedException {
-        HttpResponse<String> response = get("/v1/policies/" + policyId);
+        HttpResponse<String> response = get("/rlaas/v1/policies/" + policyId);
         return readMap(response);
     }
 
     public Map<String, Object> createPolicy(Policy policy) throws IOException, InterruptedException {
-        HttpResponse<String> response = post("/v1/policies", objectMapper.writeValueAsString(policy));
+        HttpResponse<String> response = post("/rlaas/v1/policies", objectMapper.writeValueAsString(policy));
         return readMap(response);
     }
 
     public Map<String, Object> updatePolicy(String policyId, Policy policy) throws IOException, InterruptedException {
-        HttpResponse<String> response = put("/v1/policies/" + policyId, objectMapper.writeValueAsString(policy));
+        HttpResponse<String> response = put("/rlaas/v1/policies/" + policyId, objectMapper.writeValueAsString(policy));
         return readMap(response);
     }
 
     public void deletePolicy(String policyId) throws IOException, InterruptedException {
-        HttpResponse<String> response = delete("/v1/policies/" + policyId);
+        HttpResponse<String> response = delete("/rlaas/v1/policies/" + policyId);
         ensureSuccess(response);
     }
 
     public Map<String, Object> validatePolicy(Policy policy) throws IOException, InterruptedException {
-        HttpResponse<String> response = post("/v1/policies/validate", objectMapper.writeValueAsString(policy));
+        HttpResponse<String> response = post("/rlaas/v1/policies/validate", objectMapper.writeValueAsString(policy));
         return readMap(response);
     }
 
     public Map<String, Object> updateRollout(String policyId, int rolloutPercent) throws IOException, InterruptedException {
-        HttpResponse<String> response = post("/v1/policies/" + policyId + "/rollout", objectMapper.writeValueAsString(Map.of("rollout_percent", rolloutPercent)));
+        HttpResponse<String> response = post("/rlaas/v1/policies/" + policyId + "/rollout", objectMapper.writeValueAsString(Map.of("rollout_percent", rolloutPercent)));
         return readMap(response);
     }
 
     public Map<String, Object> rollbackPolicy(String policyId, long version) throws IOException, InterruptedException {
-        HttpResponse<String> response = post("/v1/policies/" + policyId + "/rollback", objectMapper.writeValueAsString(Map.of("version", version)));
+        HttpResponse<String> response = post("/rlaas/v1/policies/" + policyId + "/rollback", objectMapper.writeValueAsString(Map.of("version", version)));
         return readMap(response);
     }
 
     public List<Map<String, Object>> listPolicyAudit(String policyId) throws IOException, InterruptedException {
-        HttpResponse<String> response = get("/v1/policies/" + policyId + "/audit");
+        HttpResponse<String> response = get("/rlaas/v1/policies/" + policyId + "/audit");
         return readList(response);
     }
 
     public List<Map<String, Object>> listPolicyVersions(String policyId) throws IOException, InterruptedException {
-        HttpResponse<String> response = get("/v1/policies/" + policyId + "/versions");
+        HttpResponse<String> response = get("/rlaas/v1/policies/" + policyId + "/versions");
         return readList(response);
     }
 
     public Map<String, Object> analyticsSummary(Integer top) throws IOException, InterruptedException {
-        String path = "/v1/analytics/summary" + (top == null ? "" : "?top=" + top);
+        String path = "/rlaas/v1/analytics/summary" + (top == null ? "" : "?top=" + top);
         HttpResponse<String> response = get(path);
         return readMap(response);
     }

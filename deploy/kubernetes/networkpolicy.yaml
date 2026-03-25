@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rlaas-server
+  namespace: rlaas
+  labels:
+    app.kubernetes.io/name: rlaas
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: rlaas
+      app.kubernetes.io/component: server
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow traffic from any pod in the cluster to HTTP/gRPC ports
+    - ports:
+        - port: 8080
+          protocol: TCP
+        - port: 9090
+          protocol: TCP
+  egress:
+    # Allow DNS resolution
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow outbound to Redis, Postgres, NATS, etc. (customize per environment)
+    - ports:
+        - port: 6379
+          protocol: TCP
+        - port: 5432
+          protocol: TCP

@@ -3,6 +3,9 @@
 #   docker compose up -d          # start everything
 #   docker compose up rlaas       # server only (in-memory counters, file policies)
 #   docker compose --profile full up -d  # server + redis + postgres
+#
+# Secrets: Create .env or use Docker secrets for production.
+#   RLAAS_REDIS_PASSWORD, RLAAS_POSTGRES_PASSWORD should be set externally.
 
 services:
   # ── RLAAS Server ───────────────────────────────────────────
@@ -16,13 +19,26 @@ services:
     environment:
       RLAAS_POLICY_FILE: /etc/rlaas/policies.json
       RLAAS_GRPC_ADDR: ":9090"
+      RLAAS_LOG_LEVEL: info
+      RLAAS_LOG_FORMAT: json
     volumes:
-      - ./examples/fidelity-policies.json:/etc/rlaas/policies.json:ro
+      - ./examples/policies.json:/etc/rlaas/policies.json:ro
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/check"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
       interval: 10s
       timeout: 3s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    read_only: true
+    tmpfs:
+      - /tmp
     restart: unless-stopped
 
   # ── Redis (distributed counters) ───────────────────────────
@@ -31,14 +47,26 @@ services:
     profiles: ["full"]
     ports:
       - "6379:6379"
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${RLAAS_REDIS_PASSWORD:-changeme}
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${RLAAS_REDIS_PASSWORD:-changeme}", "ping"]
       interval: 5s
       timeout: 2s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 384M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
     restart: unless-stopped
 
   # ── PostgreSQL (policy + counter store) ────────────────────
@@ -50,7 +78,7 @@ services:
     environment:
       POSTGRES_DB: rlaas
       POSTGRES_USER: rlaas
-      POSTGRES_PASSWORD: rlaas_secret
+      POSTGRES_PASSWORD: ${RLAAS_POSTGRES_PASSWORD:-changeme}
     volumes:
       - pg-data:/var/lib/postgresql/data
     healthcheck:
@@ -58,6 +86,14 @@ services:
       interval: 5s
       timeout: 2s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
     restart: unless-stopped
 
   # ── RLAAS Server (full stack with Redis + Postgres) ────────
@@ -74,17 +110,37 @@ services:
       RLAAS_GRPC_ADDR: ":9090"
       RLAAS_COUNTER_BACKEND: redis
       RLAAS_REDIS_ADDR: "redis:6379"
+      RLAAS_REDIS_PASSWORD: ${RLAAS_REDIS_PASSWORD:-changeme}
       RLAAS_POLICY_BACKEND: postgres
-      RLAAS_POLICY_DSN: "postgres://rlaas:rlaas_secret@postgres:5432/rlaas?sslmode=disable"
+      RLAAS_POLICY_DSN: "postgres://rlaas:${RLAAS_POSTGRES_PASSWORD:-changeme}@postgres:5432/rlaas?sslmode=disable"
+      RLAAS_AUTH_ENABLED: "false"
+      RLAAS_LOG_LEVEL: info
+      RLAAS_LOG_FORMAT: json
+      RLAAS_AUDIT_ENABLED: "true"
+      RLAAS_AUDIT_DRIVER: file
+      RLAAS_AUDIT_FILE: /var/log/rlaas/audit.jsonl
     volumes:
-      - ./examples/fidelity-policies.json:/etc/rlaas/policies.json:ro
+      - ./examples/policies.json:/etc/rlaas/policies.json:ro
+      - audit-data:/var/log/rlaas
     depends_on:
       redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    read_only: true
+    tmpfs:
+      - /tmp
     restart: unless-stopped
 
 volumes:
   redis-data:
   pg-data:
+  audit-data:

@@ -3,7 +3,7 @@ info:
   title: RLAAS API
   version: 0.1.0
 paths:
-  /v1/check:
+  /rlaas/v1/check:
     post:
       summary: Evaluate a rate limit decision
       requestBody:

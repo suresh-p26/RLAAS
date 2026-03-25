@@ -11,7 +11,7 @@ func TestNewHTTPServerRoutes(t *testing.T) {
 	s := NewHTTPServer(":0", check)
 
 	r1 := httptest.NewRecorder()
-	s.Mux.ServeHTTP(r1, httptest.NewRequest(http.MethodPost, "/v1/check", nil))
+	s.Mux.ServeHTTP(r1, httptest.NewRequest(http.MethodPost, "/rlaas/v1/check", nil))
 	if r1.Code != http.StatusCreated {
 		t.Fatalf("expected check route to be registered")
 	}

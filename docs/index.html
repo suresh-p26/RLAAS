@@ -277,7 +277,7 @@
 <!-- ═══════════════════════════ API QUICK REF ═══════════════════════════ -->
 <section class="content">
   <h2>API at a Glance</h2>
-  <p>Simple, RESTful endpoints. One <code>POST /v1/check</code> call to get a rate-limit decision.</p>
+  <p>Simple, RESTful endpoints. One <code>POST /rlaas/v1/check</code> call to get a rate-limit decision.</p>
 
   <div class="endpoint-table">
     <table>
@@ -287,72 +287,72 @@
       <tbody>
         <tr>
           <td><span class="endpoint-method method-post">POST</span></td>
-          <td class="endpoint-path">/v1/check</td>
+          <td class="endpoint-path">/rlaas/v1/check</td>
           <td>Evaluate a rate-limit decision</td>
         </tr>
         <tr>
           <td><span class="endpoint-method method-post">POST</span></td>
-          <td class="endpoint-path">/v1/acquire</td>
+          <td class="endpoint-path">/rlaas/v1/acquire</td>
           <td>Acquire a concurrency lease</td>
         </tr>
         <tr>
           <td><span class="endpoint-method method-post">POST</span></td>
-          <td class="endpoint-path">/v1/release</td>
+          <td class="endpoint-path">/rlaas/v1/release</td>
           <td>Release a concurrency lease</td>
         </tr>
         <tr>
           <td><span class="endpoint-method method-get">GET</span></td>
-          <td class="endpoint-path">/v1/policies</td>
+          <td class="endpoint-path">/rlaas/v1/policies</td>
           <td>List all policies</td>
         </tr>
         <tr>
           <td><span class="endpoint-method method-post">POST</span></td>
-          <td class="endpoint-path">/v1/policies</td>
+          <td class="endpoint-path">/rlaas/v1/policies</td>
           <td>Create a new policy</td>
         </tr>
         <tr>
           <td><span class="endpoint-method method-get">GET</span></td>
-          <td class="endpoint-path">/v1/policies/{id}</td>
+          <td class="endpoint-path">/rlaas/v1/policies/{id}</td>
           <td>Get a specific policy</td>
         </tr>
         <tr>
           <td><span class="endpoint-method method-put">PUT</span></td>
-          <td class="endpoint-path">/v1/policies/{id}</td>
+          <td class="endpoint-path">/rlaas/v1/policies/{id}</td>
           <td>Update a policy</td>
         </tr>
         <tr>
           <td><span class="endpoint-method method-delete">DELETE</span></td>
-          <td class="endpoint-path">/v1/policies/{id}</td>
+          <td class="endpoint-path">/rlaas/v1/policies/{id}</td>
           <td>Delete a policy</td>
         </tr>
         <tr>
           <td><span class="endpoint-method method-get">GET</span></td>
-          <td class="endpoint-path">/v1/policies/{id}/audit</td>
+          <td class="endpoint-path">/rlaas/v1/policies/{id}/audit</td>
           <td>Policy change audit trail</td>
         </tr>
         <tr>
           <td><span class="endpoint-method method-get">GET</span></td>
-          <td class="endpoint-path">/v1/policies/{id}/versions</td>
+          <td class="endpoint-path">/rlaas/v1/policies/{id}/versions</td>
           <td>Policy version history</td>
         </tr>
         <tr>
           <td><span class="endpoint-method method-post">POST</span></td>
-          <td class="endpoint-path">/v1/policies/{id}/rollout</td>
+          <td class="endpoint-path">/rlaas/v1/policies/{id}/rollout</td>
           <td>Update rollout percentage</td>
         </tr>
         <tr>
           <td><span class="endpoint-method method-post">POST</span></td>
-          <td class="endpoint-path">/v1/policies/{id}/rollback</td>
+          <td class="endpoint-path">/rlaas/v1/policies/{id}/rollback</td>
           <td>Rollback to a previous version</td>
         </tr>
         <tr>
           <td><span class="endpoint-method method-post">POST</span></td>
-          <td class="endpoint-path">/v1/policies/validate</td>
+          <td class="endpoint-path">/rlaas/v1/policies/validate</td>
           <td>Validate a policy definition</td>
         </tr>
         <tr>
           <td><span class="endpoint-method method-get">GET</span></td>
-          <td class="endpoint-path">/v1/analytics/summary</td>
+          <td class="endpoint-path">/rlaas/v1/analytics/summary</td>
           <td>Decision analytics summary</td>
         </tr>
       </tbody>

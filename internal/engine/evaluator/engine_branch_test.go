@@ -3,14 +3,15 @@ package evaluator
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	"github.com/rlaas-io/rlaas/internal/algorithm"
 	"github.com/rlaas-io/rlaas/internal/engine/matcher"
 	"github.com/rlaas-io/rlaas/internal/key"
 	"github.com/rlaas-io/rlaas/internal/store"
 	cache "github.com/rlaas-io/rlaas/internal/store/cache"
 	"github.com/rlaas-io/rlaas/pkg/model"
-	"testing"
-	"time"
 )
 
 type matcherErrStub struct {
@@ -86,7 +87,7 @@ func TestStartConcurrencyLeaseShadowVariantsAndPickPolicyFilters(t *testing.T) {
 		{PolicyID: "disabled", Enabled: false, RolloutPercent: 100, Algorithm: model.AlgorithmConfig{Type: model.AlgoConcurrency, MaxConcurrency: 1}},
 		{PolicyID: "future", Enabled: true, RolloutPercent: 100, ValidFromUnix: now.Unix() + 100, Algorithm: model.AlgorithmConfig{Type: model.AlgoConcurrency, MaxConcurrency: 1}},
 		{PolicyID: "past", Enabled: true, RolloutPercent: 100, ValidToUnix: now.Unix() - 100, Algorithm: model.AlgorithmConfig{Type: model.AlgoConcurrency, MaxConcurrency: 1}},
-		{PolicyID: "rollout0", Enabled: true, RolloutPercent: 0, Algorithm: model.AlgorithmConfig{Type: model.AlgoConcurrency, MaxConcurrency: 1}},
+		{PolicyID: "rollout50", Enabled: true, RolloutPercent: 50, Algorithm: model.AlgorithmConfig{Type: model.AlgoConcurrency, MaxConcurrency: 1}},
 		{PolicyID: "active", Enabled: true, RolloutPercent: 100, EnforcementMode: model.ShadowMode, Algorithm: model.AlgorithmConfig{Type: model.AlgoConcurrency, MaxConcurrency: 1}, Action: model.ActionDeny},
 	}
 
