@@ -1,0 +1,343 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-03-27T00:00:00.000Z",
+  "__export_source": "rlaas.docs",
+  "resources": [
+    {
+      "_id": "wrk_rlaas",
+      "_type": "workspace",
+      "name": "RLAAS API",
+      "description": "Rate Limiting As A Service — complete API collection",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_default",
+      "_type": "environment",
+      "parentId": "wrk_rlaas",
+      "name": "Local Development",
+      "data": {
+        "base_url": "http://localhost:8080",
+        "sidecar_url": "http://localhost:18080",
+        "auth_token": ""
+      }
+    },
+    {
+      "_id": "fld_operational",
+      "_type": "request_group",
+      "parentId": "wrk_rlaas",
+      "name": "Operational",
+      "description": "Health, readiness, and metrics endpoints"
+    },
+    {
+      "_id": "req_healthz",
+      "_type": "request",
+      "parentId": "fld_operational",
+      "name": "Liveness — GET /healthz",
+      "method": "GET",
+      "url": "{{ _.base_url }}/healthz",
+      "description": "Returns 200 OK with body \"ok\" when the process is alive."
+    },
+    {
+      "_id": "req_readyz",
+      "_type": "request",
+      "parentId": "fld_operational",
+      "name": "Readiness — GET /readyz",
+      "method": "GET",
+      "url": "{{ _.base_url }}/readyz",
+      "description": "Returns 200 OK after all routes are registered. Returns 503 during startup/shutdown."
+    },
+    {
+      "_id": "req_metrics",
+      "_type": "request",
+      "parentId": "fld_operational",
+      "name": "Metrics — GET /metrics",
+      "method": "GET",
+      "url": "{{ _.base_url }}/metrics",
+      "description": "Prometheus text exposition format."
+    },
+    {
+      "_id": "fld_decision",
+      "_type": "request_group",
+      "parentId": "wrk_rlaas",
+      "name": "Decision APIs",
+      "description": "Rate-limit evaluation and concurrency control"
+    },
+    {
+      "_id": "req_check",
+      "_type": "request",
+      "parentId": "fld_decision",
+      "name": "Check — POST /rlaas/v1/check",
+      "method": "POST",
+      "url": "{{ _.base_url }}/rlaas/v1/check",
+      "description": "Evaluate a rate-limit decision for a request context.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"request_id\": \"req-1\",\n  \"org_id\": \"acme\",\n  \"tenant_id\": \"retail\",\n  \"signal_type\": \"http\",\n  \"operation\": \"charge\",\n  \"endpoint\": \"/v1/charge\",\n  \"method\": \"POST\",\n  \"user_id\": \"u1\",\n  \"tags\": { \"env\": \"production\" }\n}"
+      }
+    },
+    {
+      "_id": "req_acquire",
+      "_type": "request",
+      "parentId": "fld_decision",
+      "name": "Acquire — POST /rlaas/v1/acquire",
+      "method": "POST",
+      "url": "{{ _.base_url }}/rlaas/v1/acquire",
+      "description": "Acquire a concurrency lease.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"request_id\": \"req-2\",\n  \"org_id\": \"acme\",\n  \"signal_type\": \"http\",\n  \"operation\": \"heavy-query\",\n  \"user_id\": \"u1\"\n}"
+      }
+    },
+    {
+      "_id": "req_release",
+      "_type": "request",
+      "parentId": "fld_decision",
+      "name": "Release — POST /rlaas/v1/release",
+      "method": "POST",
+      "url": "{{ _.base_url }}/rlaas/v1/release",
+      "description": "Release a previously acquired concurrency lease.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"request_id\": \"req-2\",\n  \"org_id\": \"acme\",\n  \"signal_type\": \"http\",\n  \"operation\": \"heavy-query\",\n  \"user_id\": \"u1\"\n}"
+      }
+    },
+    {
+      "_id": "fld_policies",
+      "_type": "request_group",
+      "parentId": "wrk_rlaas",
+      "name": "Policy CRUD",
+      "description": "Create, read, update, and delete rate-limiting policies"
+    },
+    {
+      "_id": "req_list_policies",
+      "_type": "request",
+      "parentId": "fld_policies",
+      "name": "List Policies — GET /rlaas/v1/policies",
+      "method": "GET",
+      "url": "{{ _.base_url }}/rlaas/v1/policies",
+      "description": "List all policies.",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ _.auth_token }}" }
+      ]
+    },
+    {
+      "_id": "req_create_policy",
+      "_type": "request",
+      "parentId": "fld_policies",
+      "name": "Create Policy — POST /rlaas/v1/policies",
+      "method": "POST",
+      "url": "{{ _.base_url }}/rlaas/v1/policies",
+      "description": "Create a new policy.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.auth_token }}" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"policy_id\": \"payments-limit\",\n  \"name\": \"Payments limit\",\n  \"enabled\": true,\n  \"priority\": 100,\n  \"scope\": {\n    \"org_id\": \"acme\",\n    \"signal_type\": \"http\",\n    \"operation\": \"charge\"\n  },\n  \"algorithm\": {\n    \"type\": \"fixed_window\",\n    \"limit\": 100,\n    \"window\": \"1m\"\n  },\n  \"action\": \"deny\",\n  \"failure_mode\": \"fail_open\",\n  \"enforcement_mode\": \"enforce\",\n  \"rollout_percent\": 100\n}"
+      }
+    },
+    {
+      "_id": "req_get_policy",
+      "_type": "request",
+      "parentId": "fld_policies",
+      "name": "Get Policy — GET /rlaas/v1/policies/{id}",
+      "method": "GET",
+      "url": "{{ _.base_url }}/rlaas/v1/policies/payments-limit",
+      "description": "Get a specific policy by ID.",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ _.auth_token }}" }
+      ]
+    },
+    {
+      "_id": "req_update_policy",
+      "_type": "request",
+      "parentId": "fld_policies",
+      "name": "Update Policy — PUT /rlaas/v1/policies/{id}",
+      "method": "PUT",
+      "url": "{{ _.base_url }}/rlaas/v1/policies/payments-limit",
+      "description": "Update an existing policy. Full policy body required.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.auth_token }}" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"policy_id\": \"payments-limit\",\n  \"name\": \"Payments limit (updated)\",\n  \"enabled\": true,\n  \"priority\": 200,\n  \"scope\": {\n    \"org_id\": \"acme\",\n    \"signal_type\": \"http\",\n    \"operation\": \"charge\"\n  },\n  \"algorithm\": {\n    \"type\": \"fixed_window\",\n    \"limit\": 200,\n    \"window\": \"1m\"\n  },\n  \"action\": \"deny\",\n  \"failure_mode\": \"fail_open\",\n  \"enforcement_mode\": \"enforce\",\n  \"rollout_percent\": 100\n}"
+      }
+    },
+    {
+      "_id": "req_delete_policy",
+      "_type": "request",
+      "parentId": "fld_policies",
+      "name": "Delete Policy — DELETE /rlaas/v1/policies/{id}",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/rlaas/v1/policies/payments-limit",
+      "description": "Delete a policy by ID.",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ _.auth_token }}" }
+      ]
+    },
+    {
+      "_id": "fld_lifecycle",
+      "_type": "request_group",
+      "parentId": "wrk_rlaas",
+      "name": "Policy Lifecycle",
+      "description": "Validation, rollout, rollback, audit, and versioning"
+    },
+    {
+      "_id": "req_validate",
+      "_type": "request",
+      "parentId": "fld_lifecycle",
+      "name": "Validate — POST /rlaas/v1/policies/validate",
+      "method": "POST",
+      "url": "{{ _.base_url }}/rlaas/v1/policies/validate",
+      "description": "Validate a policy definition before deployment.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.auth_token }}" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Validation sample\",\n  \"enabled\": true,\n  \"scope\": { \"signal_type\": \"http\", \"operation\": \"charge\" },\n  \"algorithm\": { \"type\": \"fixed_window\", \"limit\": 10, \"window\": \"1m\" },\n  \"action\": \"deny\",\n  \"rollout_percent\": 50\n}"
+      }
+    },
+    {
+      "_id": "req_rollout",
+      "_type": "request",
+      "parentId": "fld_lifecycle",
+      "name": "Rollout — POST /rlaas/v1/policies/{id}/rollout",
+      "method": "POST",
+      "url": "{{ _.base_url }}/rlaas/v1/policies/payments-limit/rollout",
+      "description": "Update rollout percentage for gradual enforcement.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.auth_token }}" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"rollout_percent\": 25\n}"
+      }
+    },
+    {
+      "_id": "req_rollback",
+      "_type": "request",
+      "parentId": "fld_lifecycle",
+      "name": "Rollback — POST /rlaas/v1/policies/{id}/rollback",
+      "method": "POST",
+      "url": "{{ _.base_url }}/rlaas/v1/policies/payments-limit/rollback",
+      "description": "Roll back to a specific previous version.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.auth_token }}" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"version\": 1\n}"
+      }
+    },
+    {
+      "_id": "req_audit",
+      "_type": "request",
+      "parentId": "fld_lifecycle",
+      "name": "Audit Trail — GET /rlaas/v1/policies/{id}/audit",
+      "method": "GET",
+      "url": "{{ _.base_url }}/rlaas/v1/policies/payments-limit/audit",
+      "description": "Get the audit trail for a policy.",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ _.auth_token }}" }
+      ]
+    },
+    {
+      "_id": "req_versions",
+      "_type": "request",
+      "parentId": "fld_lifecycle",
+      "name": "Versions — GET /rlaas/v1/policies/{id}/versions",
+      "method": "GET",
+      "url": "{{ _.base_url }}/rlaas/v1/policies/payments-limit/versions",
+      "description": "Get all historical versions of a policy.",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ _.auth_token }}" }
+      ]
+    },
+    {
+      "_id": "fld_analytics",
+      "_type": "request_group",
+      "parentId": "wrk_rlaas",
+      "name": "Analytics",
+      "description": "Decision event analytics and summaries"
+    },
+    {
+      "_id": "req_analytics_summary",
+      "_type": "request",
+      "parentId": "fld_analytics",
+      "name": "Summary — GET /rlaas/v1/analytics/summary",
+      "method": "GET",
+      "url": "{{ _.base_url }}/rlaas/v1/analytics/summary?top=5",
+      "description": "Get a summary of decision events with tag aggregation."
+    },
+    {
+      "_id": "fld_sidecar",
+      "_type": "request_group",
+      "parentId": "wrk_rlaas",
+      "name": "Sidecar / Agent",
+      "description": "Local agent endpoints (default port 18080)"
+    },
+    {
+      "_id": "req_sidecar_check",
+      "_type": "request",
+      "parentId": "fld_sidecar",
+      "name": "Check (Sidecar) — POST /rlaas/v1/check",
+      "method": "POST",
+      "url": "{{ _.sidecar_url }}/rlaas/v1/check",
+      "description": "Local rate-limit decision (proxied to upstream).",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"request_id\": \"req-1\",\n  \"org_id\": \"acme\",\n  \"signal_type\": \"http\",\n  \"operation\": \"charge\",\n  \"user_id\": \"u1\"\n}"
+      }
+    },
+    {
+      "_id": "req_sidecar_health",
+      "_type": "request",
+      "parentId": "fld_sidecar",
+      "name": "Health (Sidecar) — GET /healthz",
+      "method": "GET",
+      "url": "{{ _.sidecar_url }}/healthz",
+      "description": "Agent health check."
+    },
+    {
+      "_id": "req_sidecar_status",
+      "_type": "request",
+      "parentId": "fld_sidecar",
+      "name": "Agent Status — GET /rlaas/v1/agent/status",
+      "method": "GET",
+      "url": "{{ _.sidecar_url }}/rlaas/v1/agent/status",
+      "description": "Agent status and metadata."
+    },
+    {
+      "_id": "req_sidecar_invalidate",
+      "_type": "request",
+      "parentId": "fld_sidecar",
+      "name": "Invalidate Cache — POST /rlaas/v1/agent/invalidate",
+      "method": "POST",
+      "url": "{{ _.sidecar_url }}/rlaas/v1/agent/invalidate",
+      "description": "Trigger cache invalidation.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ]
+    }
+  ]
+}
