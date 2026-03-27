@@ -19,6 +19,13 @@ linters:
         - shadow
         - printf
         - structtag
+  exclusions:
+    rules:
+      # Test files: errcheck and unparam are noisy and not actionable in tests
+      - path: "_test\\.go"
+        linters:
+          - errcheck
+          - unparam
 
 formatters:
   enable:
@@ -28,11 +35,3 @@ formatters:
     goimports:
       local-prefixes:
         - github.com/rlaas-io/rlaas
-
-exclusions:
-  rules:
-    # Test files: errcheck and unparam are noisy and not actionable in tests
-    - path: "_test\\.go"
-      linters:
-        - errcheck
-        - unparam
