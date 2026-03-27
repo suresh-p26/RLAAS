@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Collections — RLAAS</title>
+  <meta name="description" content="Download ready-to-use Insomnia and Postman collections for the RLAAS API — pre-configured environments, every endpoint, zero setup." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+</head>
+<body>
+
+<!-- NAV (placeholder — will be replaced by bulk nav update) -->
+<nav class="nav"><div class="nav-inner">
+  <a href="index.html" class="nav-logo">RLAAS API</a>
+  <button class="nav-toggle" aria-label="Menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <ul class="nav-links">
+    <li><a href="index.html">Why RLAAS</a></li>
+    <li>
+      <button class="nav-dropdown-toggle">Product <svg class="chevron" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="nav-dropdown-menu nav-mega nav-mega-cols">
+        <div class="nav-mega-group">
+          <h5>Platform</h5>
+          <ul>
+            <li><a href="features.html">Features<small>Core rate limiting capabilities</small></a></li>
+            <li><a href="design.html">Design<small>Algorithm deep-dive</small></a></li>
+            <li><a href="architecture.html">Architecture<small>System design &amp; internals</small></a></li>
+          </ul>
+        </div>
+        <div class="nav-mega-group">
+          <h5>Integrate</h5>
+          <ul>
+            <li><a href="providers.html">Providers<small>OTel, Datadog, Envoy, Kafka &amp; more</small></a></li>
+            <li><a href="ai-ml.html">AI &amp; ML<small>LLM &amp; agent rate limiting</small></a></li>
+          </ul>
+        </div>
+      </div>
+    </li>
+    <li>
+      <button class="nav-dropdown-toggle active">Developers <svg class="chevron" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="nav-dropdown-menu nav-mega nav-mega-cols">
+        <div class="nav-mega-group">
+          <h5>Build</h5>
+          <ul>
+            <li><a href="api.html">API Reference<small>REST &amp; gRPC endpoints</small></a></li>
+            <li><a href="sdks.html">SDKs<small>Go, Python, TypeScript &amp; 6 more</small></a></li>
+            <li><a href="api-collections.html" class="active">API Collections<small>Insomnia &amp; Postman downloads</small></a></li>
+          </ul>
+        </div>
+        <div class="nav-mega-group">
+          <h5>Learn</h5>
+          <ul>
+            <li><a href="getting-started.html">Getting Started<small>Quick start guide</small></a></li>
+          </ul>
+        </div>
+      </div>
+    </li>
+    <li>
+      <button class="nav-dropdown-toggle">Compare <svg class="chevron" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="nav-dropdown-menu nav-mega">
+        <div class="nav-mega-group">
+          <h5>RLAAS vs Alternatives</h5>
+          <ul>
+            <li><a href="compare.html#matrix">Feature Matrix<small>Head-to-head capability grid</small></a></li>
+            <li><a href="compare.html#vs-libraries">vs Libraries<small>go-rate, python-limits &amp; more</small></a></li>
+            <li><a href="compare.html#vs-gateways">vs API Gateways<small>Kong, NGINX, Envoy plugins</small></a></li>
+            <li><a href="compare.html#vs-cloud">vs Cloud-Native<small>AWS WAF, Azure Front Door, GCP</small></a></li>
+            <li><a href="compare.html#vs-custom">vs Custom-Built<small>Redis + Lua, DIY middleware</small></a></li>
+          </ul>
+        </div>
+      </div>
+    </li>
+    <li><a href="getting-started.html" class="nav-cta">Get Started</a></li>
+  </ul>
+</div></nav>
+
+<!-- HERO -->
+<header class="hero" style="padding:4rem 2rem 3.5rem;">
+  <h1>API Collections</h1>
+  <p class="subtitle">Download pre-configured Insomnia and Postman collections. Every RLAAS endpoint, ready to run — just import and go.</p>
+</header>
+
+<main class="doc-layout">
+
+<!-- SIDEBAR -->
+<aside class="doc-sidebar">
+  <h4>On this page</h4>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#insomnia">Insomnia</a></li>
+    <li><a href="#postman">Postman</a></li>
+    <li><a href="#environment">Environment Setup</a></li>
+    <li><a href="#endpoints">Included Endpoints</a></li>
+    <li><a href="#import">Import Guide</a></li>
+  </ul>
+</aside>
+
+<!-- CONTENT -->
+<div class="doc-content">
+
+<!-- Overview -->
+<section id="overview">
+<h2>Overview</h2>
+<p>Both collections include <strong>every RLAAS API endpoint</strong> — decisions, policy CRUD, lifecycle, analytics, and health — with a pre-configured environment so you can start testing immediately.</p>
+
+<div class="info-card-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+  <div class="info-card"><div class="info-card-title">Endpoints</div><div class="info-card-value">25+</div></div>
+  <div class="info-card"><div class="info-card-title">Environments</div><div class="info-card-value">Local + Production</div></div>
+  <div class="info-card"><div class="info-card-title">Auth</div><div class="info-card-value">Pre-configured</div></div>
+  <div class="info-card"><div class="info-card-title">Formats</div><div class="info-card-value">Insomnia v4, Postman v2.1</div></div>
+</div>
+
+<div class="callout callout-tip">
+  <strong>Global variables:</strong> Both collections use environment variables for <code>base_url</code>, <code>api_key</code>, <code>org_id</code>, and <code>tenant_id</code>. Change them once and every request updates automatically.
+</div>
+</section>
+
+<!-- Insomnia -->
+<section id="insomnia">
+<h2>Insomnia Collection</h2>
+<p>The Insomnia collection uses the <strong>v4 export format</strong> with workspace-level environment variables and folder grouping.</p>
+
+<div class="download-card">
+  <div class="download-card-icon">
+    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+  </div>
+  <div>
+    <h3>RLAAS — Insomnia Collection</h3>
+    <p>Insomnia v4 export with environments &amp; folder structure.</p>
+    <a href="collections/rlaas-insomnia.json" class="btn-download" download>Download Insomnia Collection</a>
+  </div>
+</div>
+
+<h3>What's included</h3>
+<ul>
+  <li><strong>Workspace environment</strong> — <code>base_url</code>, <code>api_key</code>, <code>org_id</code>, <code>tenant_id</code> set globally</li>
+  <li><strong>Decisions folder</strong> — <code>POST /v1/check</code>, <code>POST /v1/acquire</code>, <code>POST /v1/release</code></li>
+  <li><strong>Policies folder</strong> — CRUD, validate, rollout, rollback, versions</li>
+  <li><strong>Analytics folder</strong> — summary, audit trail</li>
+  <li><strong>Health folder</strong> — <code>GET /healthz</code>, <code>GET /readyz</code></li>
+</ul>
+</section>
+
+<!-- Postman -->
+<section id="postman">
+<h2>Postman Collection</h2>
+<p>The Postman collection uses <strong>Collection v2.1 format</strong> with a companion environment file.</p>
+
+<div class="download-card">
+  <div class="download-card-icon">
+    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+  </div>
+  <div>
+    <h3>RLAAS — Postman Collection</h3>
+    <p>Postman v2.1 collection + environment file.</p>
+    <a href="collections/rlaas-postman-collection.json" class="btn-download" download>Download Collection</a>
+    <a href="collections/rlaas-postman-environment.json" class="btn-download btn-download-alt" download>Download Environment</a>
+  </div>
+</div>
+
+<h3>What's included</h3>
+<ul>
+  <li><strong>Collection variables</strong> — <code>{{base_url}}</code>, <code>{{api_key}}</code>, <code>{{org_id}}</code>, <code>{{tenant_id}}</code></li>
+  <li><strong>Pre-request scripts</strong> — automatic auth header injection</li>
+  <li><strong>Test scripts</strong> — basic assertions on every request (status code, response shape)</li>
+  <li><strong>All endpoint folders</strong> — same structure as Insomnia collection</li>
+</ul>
+</section>
+
+<!-- Environment Setup -->
+<section id="environment">
+<h2>Environment Setup</h2>
+<p>Both collections ship with two environments. Switch between them to test locally or against production.</p>
+
+<table>
+  <thead><tr><th>Variable</th><th>Local</th><th>Production</th></tr></thead>
+  <tbody>
+    <tr><td><code>base_url</code></td><td><code>http://localhost:8080</code></td><td><code>https://rlaas.your-company.com</code></td></tr>
+    <tr><td><code>api_key</code></td><td><code>dev-key-change-me</code></td><td><em>(your production key)</em></td></tr>
+    <tr><td><code>org_id</code></td><td><code>acme</code></td><td><em>(your org)</em></td></tr>
+    <tr><td><code>tenant_id</code></td><td><code>default</code></td><td><em>(your tenant)</em></td></tr>
+  </tbody>
+</table>
+
+<div class="callout callout-warning">
+  <strong>Security:</strong> Never commit production API keys to source control. Use Insomnia's encrypted vault or Postman's secret variable type.
+</div>
+</section>
+
+<!-- Included Endpoints -->
+<section id="endpoints">
+<h2>Included Endpoints</h2>
+<p>Every collection covers the full RLAAS API surface:</p>
+
+<table>
+  <thead><tr><th>Category</th><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="3"><strong>Decisions</strong></td><td><code>POST</code></td><td><code>/v1/check</code></td><td>Evaluate a rate-limit decision</td></tr>
+    <tr><td><code>POST</code></td><td><code>/v1/acquire</code></td><td>Acquire a concurrency lease</td></tr>
+    <tr><td><code>POST</code></td><td><code>/v1/release</code></td><td>Release a concurrency lease</td></tr>
+    <tr><td rowspan="5"><strong>Policies</strong></td><td><code>GET</code></td><td><code>/v1/policies</code></td><td>List all policies</td></tr>
+    <tr><td><code>GET</code></td><td><code>/v1/policies/:id</code></td><td>Get a single policy</td></tr>
+    <tr><td><code>POST</code></td><td><code>/v1/policies</code></td><td>Create a policy</td></tr>
+    <tr><td><code>PUT</code></td><td><code>/v1/policies/:id</code></td><td>Update a policy</td></tr>
+    <tr><td><code>DELETE</code></td><td><code>/v1/policies/:id</code></td><td>Delete a policy</td></tr>
+    <tr><td rowspan="3"><strong>Lifecycle</strong></td><td><code>POST</code></td><td><code>/v1/policies/:id/validate</code></td><td>Validate policy config</td></tr>
+    <tr><td><code>POST</code></td><td><code>/v1/policies/:id/rollout</code></td><td>Update rollout percentage</td></tr>
+    <tr><td><code>POST</code></td><td><code>/v1/policies/:id/rollback</code></td><td>Rollback to a previous version</td></tr>
+    <tr><td rowspan="3"><strong>Analytics</strong></td><td><code>GET</code></td><td><code>/v1/analytics/summary</code></td><td>Top policies by traffic</td></tr>
+    <tr><td><code>GET</code></td><td><code>/v1/policies/:id/audit</code></td><td>Audit trail for a policy</td></tr>
+    <tr><td><code>GET</code></td><td><code>/v1/policies/:id/versions</code></td><td>Version history</td></tr>
+    <tr><td rowspan="2"><strong>Health</strong></td><td><code>GET</code></td><td><code>/healthz</code></td><td>Liveness probe</td></tr>
+    <tr><td><code>GET</code></td><td><code>/readyz</code></td><td>Readiness probe</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- Import Guide -->
+<section id="import">
+<h2>Import Guide</h2>
+
+<h3>Insomnia</h3>
+<ol>
+  <li>Open Insomnia &rarr; <strong>File &rarr; Import</strong></li>
+  <li>Select <code>rlaas-insomnia.json</code></li>
+  <li>Choose the <strong>Local</strong> or <strong>Production</strong> environment from the top-left dropdown</li>
+  <li>Update <code>api_key</code> in the environment if needed</li>
+  <li>Click any request and hit <strong>Send</strong></li>
+</ol>
+
+<h3>Postman</h3>
+<ol>
+  <li>Open Postman &rarr; <strong>Import</strong> (top-left)</li>
+  <li>Drag both <code>rlaas-postman-collection.json</code> and <code>rlaas-postman-environment.json</code></li>
+  <li>Select the <strong>RLAAS Local</strong> environment from the top-right environment picker</li>
+  <li>Update <code>api_key</code> and <code>base_url</code> for your setup</li>
+  <li>Open any folder, pick a request, and hit <strong>Send</strong></li>
+</ol>
+
+<div class="callout callout-tip">
+  <strong>Tip:</strong> Both collections include example request bodies with realistic payloads. Modify the <code>org_id</code>, <code>user_id</code>, and <code>endpoint</code> fields to match your real services.
+</div>
+</section>
+
+</div><!-- /.doc-content -->
+</main>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-inner">
+    <ul class="footer-links">
+      <li><a href="index.html">Why RLAAS</a></li>
+      <li><a href="features.html">Features</a></li>
+      <li><a href="design.html">Design</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+      <li><a href="api.html">API Reference</a></li>
+      <li><a href="sdks.html">SDKs</a></li>
+      <li><a href="providers.html">Providers</a></li>
+      <li><a href="ai-ml.html">AI &amp; ML</a></li>
+      <li><a href="getting-started.html">Get Started</a></li>
+    </ul>
+    <p>RLAAS &mdash; Rate Limiting As A Service &copy; 2025&ndash;2026</p>
+  </div>
+</footer>
+
+<!-- SCROLL-SPY -->
+<script>
+(function(){
+  const sections = document.querySelectorAll('section[id]');
+  const links = document.querySelectorAll('.doc-sidebar a');
+  function onScroll(){
+    let current = '';
+    sections.forEach(s => { if(window.scrollY >= s.offsetTop - 120) current = s.id; });
+    links.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  }
+  window.addEventListener('scroll', onScroll);
+  onScroll();
+})();
+</script>
+<script src="js/nav.js"></script>
+</body>
+</html>

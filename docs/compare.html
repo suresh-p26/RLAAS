@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compare — RLAAS vs Alternatives</title>
+  <meta name="description" content="Compare RLAAS against alternative rate limiting solutions — library-based, cloud-native, API gateway, and custom approaches." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <style>
+    /* ── Feature Matrix Table ─────────────────────── */
+    .compare-table { width: 100%; border-collapse: collapse; margin: 2rem 0; font-size: .92rem; }
+    .compare-table th, .compare-table td { padding: .75rem 1rem; border: 1px solid var(--border-light); text-align: left; }
+    .compare-table thead th { background: var(--bg-alt); font-weight: 600; position: sticky; top: 64px; z-index: 2; }
+    .compare-table thead th:first-child { min-width: 180px; }
+    .compare-table .rlaas-col { background: rgba(99,102,241,.06); }
+    .check { color: #16a34a; font-weight: 700; }
+    .cross { color: #dc2626; font-weight: 600; }
+    .partial { color: #d97706; font-weight: 600; }
+
+    /* ── Badges ───────────────────────────────────── */
+    .vs-badge { display: inline-block; padding: .25rem .7rem; border-radius: 6px; font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+    .badge-gateway { background: #dbeafe; color: #1e40af; }
+    .badge-library { background: #fef3c7; color: #92400e; }
+    .badge-cloud   { background: #d1fae5; color: #065f46; }
+    .badge-custom  { background: #f3e8ff; color: #6b21a8; }
+
+    /* ── VS Section Layout ────────────────────────── */
+    .vs-section { margin-bottom: 3rem; }
+    .vs-section > h2 { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+    .vs-intro { color: var(--text-muted); font-size: 1.05rem; margin-bottom: 1.5rem; }
+
+    /* ── Score Bar (visual verdict) ───────────────── */
+    .score-bar { display: flex; align-items: center; gap: .5rem; margin: 1.25rem 0; }
+    .score-bar-label { font-size: .8rem; font-weight: 600; min-width: 48px; text-align: right; }
+    .score-bar-track { flex: 1; height: 10px; background: var(--border-light); border-radius: 5px; overflow: hidden; position: relative; }
+    .score-bar-fill { height: 100%; border-radius: 5px; transition: width .6s ease; }
+    .score-bar-fill.fill-rlaas { background: linear-gradient(90deg, #6366f1, #818cf8); }
+    .score-bar-fill.fill-other { background: linear-gradient(90deg, #94a3b8, #cbd5e1); }
+    .score-bar-value { font-size: .8rem; font-weight: 700; min-width: 32px; }
+
+    /* ── Head-to-Head Mini Table ──────────────────── */
+    .h2h-table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 1.5rem 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--border-light); }
+    .h2h-table th, .h2h-table td { padding: .65rem 1rem; text-align: left; font-size: .88rem; }
+    .h2h-table thead th { background: var(--bg-alt); font-weight: 600; border-bottom: 2px solid var(--border-light); }
+    .h2h-table thead th.col-rlaas { color: #6366f1; }
+    .h2h-table thead th.col-other { color: #64748b; }
+    .h2h-table tbody tr { border-bottom: 1px solid var(--border-light); }
+    .h2h-table tbody tr:last-child { border-bottom: 0; }
+    .h2h-table tbody td { vertical-align: top; }
+    .h2h-table tbody td:first-child { font-weight: 600; background: var(--bg-alt); width: 30%; }
+    .h2h-table .win { background: rgba(99,102,241,.04); }
+
+    /* ── Pros / Cons Columns ─────────────────────── */
+    .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1.5rem 0; }
+    @media (max-width: 640px) { .pros-cons { grid-template-columns: 1fr; } }
+    .pros-col, .cons-col { padding: 1.25rem; border-radius: 10px; }
+    .pros-col { background: rgba(22,163,74,.04); border: 1px solid rgba(22,163,74,.15); }
+    .cons-col { background: rgba(220,38,38,.04); border: 1px solid rgba(220,38,38,.15); }
+    .pros-col h4, .cons-col h4 { margin: 0 0 .75rem; font-size: .85rem; text-transform: uppercase; letter-spacing: .04em; display: flex; align-items: center; gap: .4rem; }
+    .pros-col h4 { color: #16a34a; }
+    .cons-col h4 { color: #dc2626; }
+    .pros-col ul, .cons-col ul { list-style: none; padding: 0; margin: 0; }
+    .pros-col li, .cons-col li { padding: .35rem 0; font-size: .9rem; padding-left: 1.4rem; position: relative; }
+    .pros-col li::before { content: "✓"; position: absolute; left: 0; color: #16a34a; font-weight: 700; }
+    .cons-col li::before { content: "✗"; position: absolute; left: 0; color: #dc2626; font-weight: 600; }
+
+    /* ── Best-for Callout ─────────────────────────── */
+    .best-for { display: flex; align-items: flex-start; gap: .75rem; padding: 1rem 1.25rem; border-radius: 8px; background: var(--bg-alt); border-left: 4px solid #6366f1; margin-top: 1.5rem; font-size: .9rem; }
+    .best-for-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: .1rem; }
+
+    /* ── Effort/Cost Cards ────────────────────────── */
+    .effort-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .effort-card { text-align: center; padding: 1.25rem .75rem; border-radius: 10px; border: 1px solid var(--border-light); background: var(--bg); }
+    .effort-card .effort-icon { font-size: 1.5rem; margin-bottom: .5rem; }
+    .effort-card .effort-value { font-size: 1.25rem; font-weight: 700; color: var(--heading); }
+    .effort-card .effort-label { font-size: .78rem; color: var(--text-muted); margin-top: .25rem; }
+
+    /* ── Summary Scorecard ────────────────────────── */
+    .scorecard { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin: 2rem 0; }
+    .scorecard-item { text-align: center; padding: 1.5rem 1rem; border-radius: 12px; border: 1px solid var(--border-light); background: var(--bg); }
+    .scorecard-item .sc-number { font-size: 2rem; font-weight: 800; color: #6366f1; }
+    .scorecard-item .sc-label { font-size: .85rem; color: var(--text-muted); margin-top: .25rem; }
+    .scorecard-item .sc-detail { font-size: .78rem; color: var(--text-muted); margin-top: .5rem; line-height: 1.4; }
+  </style>
+</head>
+<body>
+
+<!-- NAV (placeholder — will be replaced by bulk nav update) -->
+<nav class="nav"><div class="nav-inner">
+  <a href="index.html" class="nav-logo">RLAAS API</a>
+  <button class="nav-toggle" aria-label="Menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <ul class="nav-links">
+    <li><a href="index.html">Why RLAAS</a></li>
+    <li>
+      <button class="nav-dropdown-toggle">Product <svg class="chevron" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="nav-dropdown-menu nav-mega nav-mega-cols">
+        <div class="nav-mega-group">
+          <h5>Platform</h5>
+          <ul>
+            <li><a href="features.html">Features<small>Core rate limiting capabilities</small></a></li>
+            <li><a href="design.html">Design<small>Algorithm deep-dive</small></a></li>
+            <li><a href="architecture.html">Architecture<small>System design &amp; internals</small></a></li>
+          </ul>
+        </div>
+        <div class="nav-mega-group">
+          <h5>Integrate</h5>
+          <ul>
+            <li><a href="providers.html">Providers<small>OTel, Datadog, Envoy, Kafka &amp; more</small></a></li>
+            <li><a href="ai-ml.html">AI &amp; ML<small>LLM &amp; agent rate limiting</small></a></li>
+          </ul>
+        </div>
+      </div>
+    </li>
+    <li>
+      <button class="nav-dropdown-toggle">Developers <svg class="chevron" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="nav-dropdown-menu nav-mega nav-mega-cols">
+        <div class="nav-mega-group">
+          <h5>Build</h5>
+          <ul>
+            <li><a href="api.html">API Reference<small>REST &amp; gRPC endpoints</small></a></li>
+            <li><a href="sdks.html">SDKs<small>Go, Python, TypeScript &amp; 6 more</small></a></li>
+            <li><a href="api-collections.html">API Collections<small>Insomnia &amp; Postman downloads</small></a></li>
+          </ul>
+        </div>
+        <div class="nav-mega-group">
+          <h5>Learn</h5>
+          <ul>
+            <li><a href="getting-started.html">Getting Started<small>Quick start guide</small></a></li>
+          </ul>
+        </div>
+      </div>
+    </li>
+    <li>
+      <button class="nav-dropdown-toggle active">Compare <svg class="chevron" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="nav-dropdown-menu nav-mega">
+        <div class="nav-mega-group">
+          <h5>RLAAS vs Alternatives</h5>
+          <ul>
+            <li><a href="compare.html#matrix" class="active">Feature Matrix<small>Head-to-head capability grid</small></a></li>
+            <li><a href="compare.html#vs-libraries">vs Libraries<small>go-rate, python-limits &amp; more</small></a></li>
+            <li><a href="compare.html#vs-gateways">vs API Gateways<small>Kong, NGINX, Envoy plugins</small></a></li>
+            <li><a href="compare.html#vs-cloud">vs Cloud-Native<small>AWS WAF, Azure Front Door, GCP</small></a></li>
+            <li><a href="compare.html#vs-custom">vs Custom-Built<small>Redis + Lua, DIY middleware</small></a></li>
+          </ul>
+        </div>
+      </div>
+    </li>
+    <li><a href="getting-started.html" class="nav-cta">Get Started</a></li>
+  </ul>
+</div></nav>
+
+<!-- HERO -->
+<header class="hero" style="padding:4rem 2rem 3.5rem;">
+  <h1>RLAAS vs Alternatives</h1>
+  <p class="subtitle">See how RLAAS compares to library-based rate limiters, API gateway plugins, cloud-native solutions, and building your own.</p>
+</header>
+
+<main class="doc-layout">
+
+<!-- SIDEBAR -->
+<aside class="doc-sidebar">
+  <h4>On this page</h4>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#matrix">Feature Matrix</a></li>
+    <li><a href="#vs-libraries">vs Libraries</a></li>
+    <li><a href="#vs-gateways">vs API Gateways</a></li>
+    <li><a href="#vs-cloud">vs Cloud-Native</a></li>
+    <li><a href="#vs-custom">vs Custom-Built</a></li>
+    <li><a href="#summary">Summary</a></li>
+  </ul>
+</aside>
+
+<!-- CONTENT -->
+<div class="doc-content">
+
+<!-- Overview -->
+<section id="overview">
+<h2>Why compare?</h2>
+<p>Rate limiting is a solved problem — in theory. In practice, most solutions force you to choose between <strong>simplicity</strong> and <strong>power</strong>. RLAAS is designed to give you both: a managed service with the depth of a purpose-built engine.</p>
+
+<div class="callout callout-tip">
+  <strong>TL;DR:</strong> RLAAS is the only solution that combines multi-algorithm support, multi-provider integration, AI/ML-native policies, and a full SDK ecosystem in a single deployable binary.
+</div>
+</section>
+
+<!-- Feature Matrix -->
+<section id="matrix">
+<h2>Feature Matrix</h2>
+<p>Head-to-head comparison across the key dimensions that matter for production rate limiting.</p>
+
+<table class="compare-table">
+  <thead>
+    <tr>
+      <th>Capability</th>
+      <th class="rlaas-col">RLAAS</th>
+      <th>Library (e.g. go-rate)</th>
+      <th>API Gateway Plugin</th>
+      <th>Cloud Service</th>
+      <th>Custom-Built</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Multi-algorithm</strong><br><small>Token bucket, sliding window, leaky bucket, fixed window, quotas</small></td>
+      <td class="rlaas-col"><span class="check">&#10003; All 6</span></td>
+      <td><span class="partial">1–2</span></td>
+      <td><span class="partial">1–2</span></td>
+      <td><span class="partial">1–3</span></td>
+      <td><span class="partial">What you build</span></td>
+    </tr>
+    <tr>
+      <td><strong>Multi-provider</strong><br><small>OTel, Datadog, Envoy, Kafka, Fluent Bit</small></td>
+      <td class="rlaas-col"><span class="check">&#10003; 6 adapters</span></td>
+      <td><span class="cross">&#10007;</span></td>
+      <td><span class="partial">Gateway only</span></td>
+      <td><span class="partial">Vendor lock-in</span></td>
+      <td><span class="partial">What you build</span></td>
+    </tr>
+    <tr>
+      <td><strong>AI / ML native</strong><br><small>Token budgets, model downgrade, GPU scheduling</small></td>
+      <td class="rlaas-col"><span class="check">&#10003; 7 scenarios</span></td>
+      <td><span class="cross">&#10007;</span></td>
+      <td><span class="cross">&#10007;</span></td>
+      <td><span class="cross">&#10007;</span></td>
+      <td><span class="partial">What you build</span></td>
+    </tr>
+    <tr>
+      <td><strong>SDKs</strong><br><small>Go, Python, TypeScript, Node, Java, .NET, C++, Rust, Ruby</small></td>
+      <td class="rlaas-col"><span class="check">&#10003; 9 SDKs</span></td>
+      <td><span class="partial">1 language</span></td>
+      <td><span class="cross">&#10007; Config only</span></td>
+      <td><span class="partial">2–3</span></td>
+      <td><span class="partial">What you build</span></td>
+    </tr>
+    <tr>
+      <td><strong>Policy versioning &amp; rollout</strong><br><small>Canary rollout, rollback, audit trail</small></td>
+      <td class="rlaas-col"><span class="check">&#10003;</span></td>
+      <td><span class="cross">&#10007;</span></td>
+      <td><span class="partial">Partial</span></td>
+      <td><span class="partial">Partial</span></td>
+      <td><span class="partial">What you build</span></td>
+    </tr>
+    <tr>
+      <td><strong>Concurrency limiting</strong><br><small>Acquire/release lease model</small></td>
+      <td class="rlaas-col"><span class="check">&#10003;</span></td>
+      <td><span class="cross">&#10007;</span></td>
+      <td><span class="cross">&#10007;</span></td>
+      <td><span class="partial">Some</span></td>
+      <td><span class="partial">What you build</span></td>
+    </tr>
+    <tr>
+      <td><strong>Multi-region</strong><br><small>Region-aware allocation, dynamic rebalancing</small></td>
+      <td class="rlaas-col"><span class="check">&#10003;</span></td>
+      <td><span class="cross">&#10007;</span></td>
+      <td><span class="cross">&#10007;</span></td>
+      <td><span class="check">&#10003;</span></td>
+      <td><span class="partial">What you build</span></td>
+    </tr>
+    <tr>
+      <td><strong>Deploy model</strong><br><small>Binary, sidecar, embedded, or SaaS</small></td>
+      <td class="rlaas-col"><span class="check">&#10003; All 4</span></td>
+      <td>Embedded only</td>
+      <td>Gateway sidecar</td>
+      <td>SaaS only</td>
+      <td>What you build</td>
+    </tr>
+    <tr>
+      <td><strong>Operational overhead</strong></td>
+      <td class="rlaas-col"><span class="check">Low</span></td>
+      <td><span class="check">None</span></td>
+      <td><span class="partial">Medium</span></td>
+      <td><span class="check">Low</span></td>
+      <td><span class="cross">High</span></td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<!-- vs Libraries -->
+<section id="vs-libraries" class="vs-section">
+<h2><span class="vs-badge badge-library">Library</span> RLAAS vs Rate Limiting Libraries</h2>
+<p class="vs-intro">e.g. go-rate, ratelimit, python-limits — In-process libraries are the simplest path to rate limiting, but they're architecturally limited to a single process.</p>
+
+<!-- Score bars -->
+<div style="margin-bottom:1.5rem">
+  <div class="score-bar">
+    <span class="score-bar-label">RLAAS</span>
+    <div class="score-bar-track"><div class="score-bar-fill fill-rlaas" style="width:95%"></div></div>
+    <span class="score-bar-value" style="color:#6366f1">9.5</span>
+  </div>
+  <div class="score-bar">
+    <span class="score-bar-label">Library</span>
+    <div class="score-bar-track"><div class="score-bar-fill fill-other" style="width:35%"></div></div>
+    <span class="score-bar-value" style="color:#64748b">3.5</span>
+  </div>
+</div>
+
+<!-- Head-to-head table -->
+<table class="h2h-table">
+  <thead><tr><th>Dimension</th><th class="col-rlaas">RLAAS</th><th class="col-other">Library</th></tr></thead>
+  <tbody>
+    <tr><td>Scope</td><td class="win"><span class="check">&#10003;</span> Distributed — global counters</td><td>Single process only</td></tr>
+    <tr><td>Algorithms</td><td class="win"><span class="check">&#10003;</span> 6 algorithms</td><td><span class="partial">1–2</span> (usually token bucket)</td></tr>
+    <tr><td>Policy changes</td><td class="win"><span class="check">&#10003;</span> API + canary rollout</td><td><span class="cross">&#10007;</span> Code change + deploy</td></tr>
+    <tr><td>Multi-language</td><td class="win"><span class="check">&#10003;</span> 9 SDKs</td><td>1 language</td></tr>
+    <tr><td>Observability</td><td class="win"><span class="check">&#10003;</span> OTel, Datadog, Kafka</td><td><span class="cross">&#10007;</span> None</td></tr>
+    <tr><td>AI/ML patterns</td><td class="win"><span class="check">&#10003;</span> 7 scenarios</td><td><span class="cross">&#10007;</span> None</td></tr>
+    <tr><td>Latency overhead</td><td>~1–5 ms (network hop)</td><td class="win"><span class="check">&#10003;</span> &lt;1 μs (in-process)</td></tr>
+    <tr><td>Setup complexity</td><td>Deploy binary / sidecar</td><td class="win"><span class="check">&#10003;</span> <code>import</code> + go</td></tr>
+  </tbody>
+</table>
+
+<!-- Pros / Cons -->
+<div class="pros-cons">
+  <div class="pros-col">
+    <h4>&#9652; Why choose RLAAS</h4>
+    <ul>
+      <li>Global counters across all replicas</li>
+      <li>Change policies without redeploying</li>
+      <li>One system for HTTP, gRPC, Kafka, OTel</li>
+      <li>Built-in AI/ML token budgets</li>
+    </ul>
+  </div>
+  <div class="cons-col">
+    <h4>&#9662; When a library wins</h4>
+    <ul>
+      <li>Single monolith — no distributed need</li>
+      <li>Ultra-low-latency (&lt;1 μs) requirement</li>
+      <li>Prototype / quick MVP</li>
+    </ul>
+  </div>
+</div>
+
+<div class="best-for">
+  <span class="best-for-icon">&#128161;</span>
+  <div><strong>Best for:</strong> Choose a library for single-instance prototypes. Choose RLAAS the moment you scale beyond one replica or need policy management.</div>
+</div>
+</section>
+
+<!-- vs API Gateways -->
+<section id="vs-gateways" class="vs-section">
+<h2><span class="vs-badge badge-gateway">Gateway</span> RLAAS vs API Gateway Plugins</h2>
+<p class="vs-intro">e.g. Kong Rate Limiting, NGINX limit_req, Envoy ratelimit — Gateway plugins are the most common choice for HTTP traffic, but they're edge-only and protocol-limited.</p>
+
+<!-- Score bars -->
+<div style="margin-bottom:1.5rem">
+  <div class="score-bar">
+    <span class="score-bar-label">RLAAS</span>
+    <div class="score-bar-track"><div class="score-bar-fill fill-rlaas" style="width:92%"></div></div>
+    <span class="score-bar-value" style="color:#6366f1">9.2</span>
+  </div>
+  <div class="score-bar">
+    <span class="score-bar-label">Gateway</span>
+    <div class="score-bar-track"><div class="score-bar-fill fill-other" style="width:50%"></div></div>
+    <span class="score-bar-value" style="color:#64748b">5.0</span>
+  </div>
+</div>
+
+<!-- Head-to-head table -->
+<table class="h2h-table">
+  <thead><tr><th>Dimension</th><th class="col-rlaas">RLAAS</th><th class="col-other">API Gateway</th></tr></thead>
+  <tbody>
+    <tr><td>Protocols</td><td class="win"><span class="check">&#10003;</span> HTTP, gRPC, Kafka, OTel</td><td>HTTP only</td></tr>
+    <tr><td>Algorithms</td><td class="win"><span class="check">&#10003;</span> 6 algorithms</td><td><span class="partial">1–2</span> (fixed / sliding)</td></tr>
+    <tr><td>Cross-service</td><td class="win"><span class="check">&#10003;</span> Single policy across services</td><td><span class="cross">&#10007;</span> Per-route only</td></tr>
+    <tr><td>Policy mgmt</td><td class="win"><span class="check">&#10003;</span> CRUD API + versioning</td><td>Config files / restarts</td></tr>
+    <tr><td>SDK access</td><td class="win"><span class="check">&#10003;</span> 9 language SDKs</td><td><span class="cross">&#10007;</span> Config only</td></tr>
+    <tr><td>AI/ML patterns</td><td class="win"><span class="check">&#10003;</span> 7 scenarios</td><td><span class="cross">&#10007;</span> None</td></tr>
+    <tr><td>Infra required</td><td>Separate binary / sidecar</td><td class="win"><span class="check">&#10003;</span> Built into gateway</td></tr>
+    <tr><td>Edge protection</td><td>Application-layer</td><td class="win"><span class="check">&#10003;</span> Edge / ingress layer</td></tr>
+  </tbody>
+</table>
+
+<!-- Pros / Cons -->
+<div class="pros-cons">
+  <div class="pros-col">
+    <h4>&#9652; Why choose RLAAS</h4>
+    <ul>
+      <li>Covers Kafka, gRPC, OTel — not just HTTP</li>
+      <li>Enforce one policy across multiple services</li>
+      <li>Call rate limiting from application code via SDK</li>
+      <li>Full CRUD API with canary rollout</li>
+    </ul>
+  </div>
+  <div class="cons-col">
+    <h4>&#9662; When a gateway wins</h4>
+    <ul>
+      <li>Already using a gateway with zero code changes needed</li>
+      <li>All traffic is HTTP, simple per-route limits</li>
+      <li>Edge / DDoS protection is the primary goal</li>
+    </ul>
+  </div>
+</div>
+
+<div class="best-for">
+  <span class="best-for-icon">&#128161;</span>
+  <div><strong>Best for:</strong> Use gateway plugins for simple per-route HTTP limits at the edge. Choose RLAAS when you need cross-service, multi-protocol policies with SDK access.</div>
+</div>
+</section>
+
+<!-- vs Cloud-Native -->
+<section id="vs-cloud" class="vs-section">
+<h2><span class="vs-badge badge-cloud">Cloud</span> RLAAS vs Cloud-Native Services</h2>
+<p class="vs-intro">e.g. AWS WAF Rate Limiting, Azure Front Door, GCP Cloud Armor — Convenient if you're all-in on one provider, but limited in depth and portability.</p>
+
+<!-- Score bars -->
+<div style="margin-bottom:1.5rem">
+  <div class="score-bar">
+    <span class="score-bar-label">RLAAS</span>
+    <div class="score-bar-track"><div class="score-bar-fill fill-rlaas" style="width:90%"></div></div>
+    <span class="score-bar-value" style="color:#6366f1">9.0</span>
+  </div>
+  <div class="score-bar">
+    <span class="score-bar-label">Cloud</span>
+    <div class="score-bar-track"><div class="score-bar-fill fill-other" style="width:55%"></div></div>
+    <span class="score-bar-value" style="color:#64748b">5.5</span>
+  </div>
+</div>
+
+<!-- Head-to-head table -->
+<table class="h2h-table">
+  <thead><tr><th>Dimension</th><th class="col-rlaas">RLAAS</th><th class="col-other">Cloud Service</th></tr></thead>
+  <tbody>
+    <tr><td>Portability</td><td class="win"><span class="check">&#10003;</span> Cloud-agnostic, self-hosted</td><td><span class="cross">&#10007;</span> Vendor lock-in</td></tr>
+    <tr><td>Algorithms</td><td class="win"><span class="check">&#10003;</span> 6 algorithms</td><td><span class="partial">1–3</span> (usually fixed window)</td></tr>
+    <tr><td>Granularity</td><td class="win"><span class="check">&#10003;</span> Org → tenant → user → endpoint → method</td><td>Per-IP or per-path</td></tr>
+    <tr><td>Telemetry</td><td class="win"><span class="check">&#10003;</span> OTel, Datadog, Kafka, Fluent Bit</td><td><span class="cross">&#10007;</span> Vendor metrics only</td></tr>
+    <tr><td>AI/ML patterns</td><td class="win"><span class="check">&#10003;</span> 7 scenarios</td><td><span class="cross">&#10007;</span> None</td></tr>
+    <tr><td>Multi-region</td><td><span class="check">&#10003;</span> Dynamic rebalancing</td><td><span class="check">&#10003;</span> Built-in</td></tr>
+    <tr><td>Operations</td><td>Self-managed binary</td><td class="win"><span class="check">&#10003;</span> Fully managed</td></tr>
+    <tr><td>DDoS protection</td><td>Application-layer</td><td class="win"><span class="check">&#10003;</span> Edge WAF layer</td></tr>
+  </tbody>
+</table>
+
+<!-- Pros / Cons -->
+<div class="pros-cons">
+  <div class="pros-col">
+    <h4>&#9652; Why choose RLAAS</h4>
+    <ul>
+      <li>No vendor lock-in — works on any cloud or on-prem</li>
+      <li>Fine-grained policy hierarchy (5 levels deep)</li>
+      <li>Pluggable observability (OTel, Datadog, etc.)</li>
+      <li>AI/ML-native token budgets and model downgrade</li>
+    </ul>
+  </div>
+  <div class="cons-col">
+    <h4>&#9662; When cloud wins</h4>
+    <ul>
+      <li>DDoS / WAF-level edge protection is the goal</li>
+      <li>Fully committed to one cloud provider</li>
+      <li>Zero operational overhead preferred</li>
+    </ul>
+  </div>
+</div>
+
+<div class="best-for">
+  <span class="best-for-icon">&#128161;</span>
+  <div><strong>Best for:</strong> Use cloud services for edge WAF protection. Choose RLAAS when you need fine-grained, cloud-agnostic rate limiting with observability and AI/ML.</div>
+</div>
+</section>
+
+<!-- vs Custom-Built -->
+<section id="vs-custom" class="vs-section">
+<h2><span class="vs-badge badge-custom">Custom</span> RLAAS vs Building Your Own</h2>
+<p class="vs-intro">Redis + Lua scripts, custom middleware — Maximum control, but maximum engineering and maintenance cost.</p>
+
+<!-- Score bars -->
+<div style="margin-bottom:1.5rem">
+  <div class="score-bar">
+    <span class="score-bar-label">RLAAS</span>
+    <div class="score-bar-track"><div class="score-bar-fill fill-rlaas" style="width:93%"></div></div>
+    <span class="score-bar-value" style="color:#6366f1">9.3</span>
+  </div>
+  <div class="score-bar">
+    <span class="score-bar-label">Custom</span>
+    <div class="score-bar-track"><div class="score-bar-fill fill-other" style="width:60%"></div></div>
+    <span class="score-bar-value" style="color:#64748b">6.0</span>
+  </div>
+</div>
+
+<!-- Effort cards -->
+<h3 style="margin-bottom:.75rem">What you'll end up building</h3>
+<div class="effort-grid">
+  <div class="effort-card">
+    <div class="effort-icon">&#128221;</div>
+    <div class="effort-value">~200 LOC</div>
+    <div class="effort-label">Redis + Lua scripts<br>(sliding window alone)</div>
+  </div>
+  <div class="effort-card">
+    <div class="effort-icon">&#128295;</div>
+    <div class="effort-value">Admin API</div>
+    <div class="effort-label">CRUD + versioning<br>for policy changes</div>
+  </div>
+  <div class="effort-card">
+    <div class="effort-icon">&#128218;</div>
+    <div class="effort-value">N SDKs</div>
+    <div class="effort-label">Client library per<br>language your team uses</div>
+  </div>
+  <div class="effort-card">
+    <div class="effort-icon">&#127760;</div>
+    <div class="effort-value">Multi-region</div>
+    <div class="effort-label">Cross-datacenter<br>counter sync</div>
+  </div>
+  <div class="effort-card">
+    <div class="effort-icon">&#128200;</div>
+    <div class="effort-value">Dashboards</div>
+    <div class="effort-label">Monitoring for the<br>rate limiter itself</div>
+  </div>
+  <div class="effort-card">
+    <div class="effort-icon">&#9201;</div>
+    <div class="effort-value">2–6 months</div>
+    <div class="effort-label">Estimated eng effort<br>for production-grade</div>
+  </div>
+</div>
+
+<!-- Head-to-head table -->
+<table class="h2h-table">
+  <thead><tr><th>Dimension</th><th class="col-rlaas">RLAAS</th><th class="col-other">Custom-Built</th></tr></thead>
+  <tbody>
+    <tr><td>Time to production</td><td class="win"><span class="check">&#10003;</span> Minutes (deploy binary)</td><td>2–6 engineer-months</td></tr>
+    <tr><td>Algorithms</td><td class="win"><span class="check">&#10003;</span> 6 built-in</td><td>What you implement</td></tr>
+    <tr><td>Policy management</td><td class="win"><span class="check">&#10003;</span> API + canary + audit</td><td>What you build</td></tr>
+    <tr><td>SDK coverage</td><td class="win"><span class="check">&#10003;</span> 9 languages</td><td>What you build</td></tr>
+    <tr><td>AI/ML patterns</td><td class="win"><span class="check">&#10003;</span> 7 scenarios</td><td>What you build</td></tr>
+    <tr><td>Maintenance</td><td class="win"><span class="check">&#10003;</span> Upgrades from RLAAS</td><td>Your team forever</td></tr>
+    <tr><td>Customizability</td><td>Extensible via providers</td><td class="win"><span class="check">&#10003;</span> Total control</td></tr>
+    <tr><td>Unique edge cases</td><td>Covers 95%+ use cases</td><td class="win"><span class="check">&#10003;</span> Built for your exact needs</td></tr>
+  </tbody>
+</table>
+
+<!-- Pros / Cons -->
+<div class="pros-cons">
+  <div class="pros-col">
+    <h4>&#9652; Why choose RLAAS</h4>
+    <ul>
+      <li>Production-ready in minutes, not months</li>
+      <li>Battle-tested algorithms and concurrency handling</li>
+      <li>No ongoing maintenance burden on your team</li>
+      <li>Full observability + AI/ML out of the box</li>
+    </ul>
+  </div>
+  <div class="cons-col">
+    <h4>&#9662; When custom wins</h4>
+    <ul>
+      <li>Extremely unusual requirements no tool covers</li>
+      <li>Rate limiting is a core competitive advantage</li>
+      <li>You have the eng capacity and want total control</li>
+    </ul>
+  </div>
+</div>
+
+<div class="best-for">
+  <span class="best-for-icon">&#128161;</span>
+  <div><strong>Best for:</strong> Build your own only if rate limiting is a core differentiator for your business. For everyone else, RLAAS saves 2–6 months of engineering effort.</div>
+</div>
+</section>
+
+<!-- Summary -->
+<section id="summary">
+<h2>Summary</h2>
+<p>RLAAS occupies a unique position: it's a <strong>dedicated rate limiting engine</strong> that can run as an embedded library, sidecar, standalone server, or managed service.</p>
+
+<!-- Visual scorecard -->
+<div class="scorecard">
+  <div class="scorecard-item">
+    <div class="sc-number">6</div>
+    <div class="sc-label">Algorithms</div>
+    <div class="sc-detail">Token bucket, sliding window, sliding log, fixed window, leaky bucket, quotas</div>
+  </div>
+  <div class="scorecard-item">
+    <div class="sc-number">6</div>
+    <div class="sc-label">Provider Adapters</div>
+    <div class="sc-detail">OpenTelemetry, Datadog, Fluent Bit, Envoy, Kafka, custom</div>
+  </div>
+  <div class="scorecard-item">
+    <div class="sc-number">9</div>
+    <div class="sc-label">Language SDKs</div>
+    <div class="sc-detail">Go, Python, TypeScript, Node.js, Java, .NET, C++, Rust, Ruby</div>
+  </div>
+  <div class="scorecard-item">
+    <div class="sc-number">7</div>
+    <div class="sc-label">AI/ML Scenarios</div>
+    <div class="sc-detail">Token budgets, model downgrade, GPU scheduling, agent guardrails, cost budgets, embeddings, streaming</div>
+  </div>
+  <div class="scorecard-item">
+    <div class="sc-number">4</div>
+    <div class="sc-label">Deploy Models</div>
+    <div class="sc-detail">Binary, sidecar, embedded library, or managed SaaS</div>
+  </div>
+  <div class="scorecard-item">
+    <div class="sc-number">&#8734;</div>
+    <div class="sc-label">Policy Lifecycle</div>
+    <div class="sc-detail">CRUD API, canary rollout, rollback, audit trail, analytics</div>
+  </div>
+</div>
+
+<!-- Quick comparison recap table -->
+<h3>At a glance</h3>
+<table class="h2h-table" style="margin-bottom:2rem">
+  <thead>
+    <tr>
+      <th>Alternative</th>
+      <th>Best when…</th>
+      <th>RLAAS advantage</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="vs-badge badge-library">Library</span></td>
+      <td>Single-instance prototype</td>
+      <td>Distributed counters, 6 algorithms, policy API</td>
+    </tr>
+    <tr>
+      <td><span class="vs-badge badge-gateway">Gateway</span></td>
+      <td>Simple per-route HTTP limits</td>
+      <td>Multi-protocol, cross-service, SDK access</td>
+    </tr>
+    <tr>
+      <td><span class="vs-badge badge-cloud">Cloud</span></td>
+      <td>Edge WAF / DDoS protection</td>
+      <td>Cloud-agnostic, fine-grained, OTel + AI/ML</td>
+    </tr>
+    <tr>
+      <td><span class="vs-badge badge-custom">Custom</span></td>
+      <td>Unique competitive advantage</td>
+      <td>Ready in minutes vs. months, zero maintenance</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout callout-tip">
+  <strong>Ready to try it?</strong> <a href="getting-started.html">Get started in 5 minutes</a> or <a href="api-collections.html">download the API collections</a> to explore every endpoint.
+</div>
+</section>
+
+</div><!-- /.doc-content -->
+</main>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-inner">
+    <ul class="footer-links">
+      <li><a href="index.html">Why RLAAS</a></li>
+      <li><a href="features.html">Features</a></li>
+      <li><a href="design.html">Design</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
+      <li><a href="api.html">API Reference</a></li>
+      <li><a href="sdks.html">SDKs</a></li>
+      <li><a href="providers.html">Providers</a></li>
+      <li><a href="ai-ml.html">AI &amp; ML</a></li>
+      <li><a href="api-collections.html">API Collections</a></li>
+      <li><a href="compare.html">Compare</a></li>
+      <li><a href="getting-started.html">Get Started</a></li>
+    </ul>
+    <p>RLAAS &mdash; Rate Limiting As A Service &copy; 2025&ndash;2026</p>
+  </div>
+</footer>
+
+<!-- SCROLL-SPY -->
+<script>
+(function(){
+  const sections = document.querySelectorAll('section[id]');
+  const links = document.querySelectorAll('.doc-sidebar a');
+  function onScroll(){
+    let current = '';
+    sections.forEach(s => { if(window.scrollY >= s.offsetTop - 120) current = s.id; });
+    links.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  }
+  window.addEventListener('scroll', onScroll);
+  onScroll();
+})();
+</script>
+<script src="js/nav.js"></script>
+</body>
+</html>

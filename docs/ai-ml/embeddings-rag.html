@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Embedding API Throttling — RLAAS</title>
+  <meta name="description" content="Throttle bulk embedding and RAG indexing jobs to just below your provider's rate limit so they complete without 429 failures." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Lora:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+  <style>
+    :root { --accent: #14b8a6; }
+    .breadcrumb { background: #f9fafb; border-bottom: 1px solid #e5e7eb; padding: .6rem 2rem; font-size: .82rem; display: flex; align-items: center; gap: .5rem; color: #6b7280; }
+    .breadcrumb a { color: #6b7280; text-decoration: none; }
+    .breadcrumb a:hover { color: #111; }
+    .breadcrumb svg { flex-shrink: 0; }
+    .sc-hero { background: linear-gradient(135deg, #0b0f1a 0%, #111827 60%, #0f172a 100%); color: #fff; padding: 4.5rem 2rem 4rem; text-align: center; position: relative; overflow: hidden; }
+    .sc-hero::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 700px 350px at 50% 0%, rgba(20,184,166,.18), transparent); }
+    .sc-tag { display: inline-block; font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; padding: .28rem .9rem; border-radius: 20px; margin-bottom: 1rem; font-family: var(--font-mono); background: rgba(255,255,255,.08); color: rgba(255,255,255,.7); border: 1px solid rgba(255,255,255,.12); }
+    .sc-hero h1 { font-size: clamp(1.9rem, 4.5vw, 3rem); font-weight: 800; color: #fff; margin: 0 auto .9rem; max-width: 700px; letter-spacing: -.02em; line-height: 1.1; }
+    .sc-hero p { font-size: 1.05rem; color: rgba(255,255,255,.6); max-width: 560px; margin: 0 auto; line-height: 1.7; }
+    .comparison-section { padding: 4rem 2rem; max-width: 1200px; margin: 0 auto; }
+    .comparison-section > h2 { text-align: center; font-size: 1.7rem; font-weight: 700; margin-bottom: 2.5rem; }
+    .comparison-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
+    @media (max-width: 768px) { .comparison-panels { grid-template-columns: 1fr; } }
+    .panel { border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb; }
+    .panel-header { padding: 1.25rem 1.5rem; }
+    .panel-without .panel-header { background: #1a0505; }
+    .panel-with .panel-header { background: #0a0f1a; }
+    .panel-badge { font-size: .65rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; padding: .2rem .7rem; border-radius: 4px; display: inline-block; margin-bottom: .6rem; }
+    .panel-badge.bad { background: rgba(220,38,38,.15); color: #fca5a5; }
+    .panel-badge.good { background: rgba(20,184,166,.15); color: #5eead4; }
+    .panel-header h3 { font-size: 1.05rem; font-weight: 700; color: #fff; margin: 0; line-height: 1.3; }
+    .panel-body { padding: 1.25rem 1.5rem; }
+    .panel-without .panel-body { background: #fff8f8; }
+    .panel-with .panel-body { background: #fff; }
+    .panel-problems, .panel-benefits { margin: 0 0 1rem; padding: 0; list-style: none; font-size: .9rem; }
+    .panel-problems li, .panel-benefits li { display: flex; gap: .5rem; padding: .3rem 0; line-height: 1.4; }
+    .panel-problems li::before { content: '✗'; color: #dc2626; font-weight: 700; flex-shrink: 0; }
+    .panel-benefits li::before { content: '✓'; color: #16a34a; font-weight: 700; flex-shrink: 0; }
+    .code-snippet { background: #0f172a; border-radius: 8px; padding: 1rem 1.1rem; font-family: var(--font-mono); font-size: .78rem; line-height: 1.65; color: #e2e8f0; overflow-x: auto; margin: .75rem 0 0; }
+    .code-snippet .cm { color: #64748b; } .code-snippet .kw { color: #818cf8; } .code-snippet .fn { color: #7dd3fc; } .code-snippet .st { color: #86efac; } .code-snippet .nm { color: #fbbf24; }
+    .code-snippet .bad-line { background: rgba(220,38,38,.15); display: block; border-left: 2px solid #dc2626; padding-left: .5rem; margin-left: -.5rem; }
+    .code-snippet .good-line { background: rgba(20,184,166,.1); display: block; border-left: 2px solid #14b8a6; padding-left: .5rem; margin-left: -.5rem; }
+    .how-section { background: #f8fafc; padding: 4rem 2rem; }
+    .how-inner { max-width: 1100px; margin: 0 auto; }
+    .how-section h2 { font-size: 1.7rem; font-weight: 700; margin-bottom: 2rem; text-align: center; }
+    .how-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 2rem; align-items: start; }
+    @media (max-width: 768px) { .how-grid { grid-template-columns: 1fr; } }
+    .how-panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+    .how-panel-header { background: #0f172a; padding: .85rem 1.25rem; }
+    .how-panel-header h3 { color: #fff; font-size: .9rem; font-weight: 700; margin: 0; letter-spacing: .02em; }
+    .how-panel-body { padding: 1.25rem; }
+    .config-code { font-family: var(--font-mono); font-size: .78rem; line-height: 1.65; color: #e2e8f0; background: #0f172a; padding: 1.1rem; margin: 0; white-space: pre; overflow-x: auto; }
+    .steps { padding: 0; margin: 0; list-style: none; counter-reset: step; }
+    .steps li { counter-increment: step; padding: .75rem 0 .75rem 2.5rem; position: relative; font-size: .9rem; line-height: 1.5; border-bottom: 1px solid #f1f5f9; }
+    .steps li:last-child { border-bottom: none; }
+    .steps li::before { content: counter(step); position: absolute; left: 0; top: .75rem; background: var(--accent); color: #fff; width: 1.5rem; height: 1.5rem; border-radius: 50%; font-size: .7rem; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+    .steps li strong { color: #111; }
+    .steps li code { font-family: var(--font-mono); font-size: .78rem; background: #f1f5f9; padding: .1em .4em; border-radius: 3px; }
+    .sdk-section { padding: 4rem 2rem; max-width: 1100px; margin: 0 auto; }
+    .sdk-section h2 { font-size: 1.7rem; font-weight: 700; margin-bottom: .5rem; }
+    .sdk-section .sdk-subtitle { color: #6b7280; margin-bottom: 2rem; font-size: .95rem; }
+    .tab-bar { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+    .tab-btn { padding: .45rem 1rem; border-radius: 6px; font-size: .82rem; font-weight: 600; cursor: pointer; border: 1px solid #e5e7eb; background: #f9fafb; color: #6b7280; transition: all .15s; }
+    .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .sdk-code { background: #0f172a; border-radius: 10px; padding: 1.4rem 1.5rem; font-family: var(--font-mono); font-size: .8rem; line-height: 1.7; color: #e2e8f0; overflow-x: auto; white-space: pre; }
+    .sdk-code .cm { color: #64748b; } .sdk-code .kw { color: #818cf8; } .sdk-code .fn { color: #7dd3fc; } .sdk-code .st { color: #86efac; } .sdk-code .nm { color: #fbbf24; } .sdk-code .tp { color: #f9a8d4; }
+    .scenario-nav-bar { background: #f8fafc; border-top: 1px solid #e5e7eb; padding: 1.5rem 2rem; }
+    .scenario-nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .snav-btn { display: flex; align-items: center; gap: .5rem; color: #374151; text-decoration: none; font-weight: 600; font-size: .9rem; padding: .6rem 1.1rem; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; transition: all .15s; }
+    .snav-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .snav-btn.center { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .snav-btn.center:hover { background: #0d9488; }
+    .snav-meta { font-size: .72rem; font-weight: 400; color: inherit; opacity: .7; display: block; }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav"><div class="nav-inner">
+  <a href="../index.html" class="nav-logo">RLAAS API</a>
+  <button class="nav-toggle" aria-label="Menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <ul class="nav-links">
+    <li><a href="../index.html">Why RLAAS</a></li>
+    <li>
+      <button class="nav-dropdown-toggle">Product <svg class="chevron" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="nav-dropdown-menu nav-mega nav-mega-cols">
+        <div class="nav-mega-group">
+          <h5>Platform</h5>
+          <ul>
+            <li><a href="../features.html">Features<small>Core rate limiting capabilities</small></a></li>
+            <li><a href="../design.html">Design<small>Algorithm deep-dive</small></a></li>
+            <li><a href="../architecture.html">Architecture<small>System design &amp; internals</small></a></li>
+          </ul>
+        </div>
+        <div class="nav-mega-group">
+          <h5>Integrate</h5>
+          <ul>
+            <li><a href="../providers.html">Providers<small>OTel, Datadog, Envoy, Kafka &amp; more</small></a></li>
+            <li><a href="../ai-ml.html" class="active">AI &amp; ML<small>LLM &amp; agent rate limiting</small></a></li>
+          </ul>
+        </div>
+      </div>
+    </li>
+    <li>
+      <button class="nav-dropdown-toggle">Developers <svg class="chevron" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="nav-dropdown-menu nav-mega nav-mega-cols">
+        <div class="nav-mega-group">
+          <h5>Build</h5>
+          <ul>
+            <li><a href="../api.html">API Reference<small>REST &amp; gRPC endpoints</small></a></li>
+            <li><a href="../sdks.html">SDKs<small>Go, Python, TypeScript &amp; 6 more</small></a></li>
+            <li><a href="../api-collections.html">API Collections<small>Insomnia &amp; Postman downloads</small></a></li>
+          </ul>
+        </div>
+        <div class="nav-mega-group">
+          <h5>Learn</h5>
+          <ul>
+            <li><a href="../getting-started.html">Getting Started<small>Quick start guide</small></a></li>
+          </ul>
+        </div>
+      </div>
+    </li>
+    <li>
+      <button class="nav-dropdown-toggle">Compare <svg class="chevron" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="nav-dropdown-menu nav-mega">
+        <div class="nav-mega-group">
+          <h5>RLAAS vs Alternatives</h5>
+          <ul>
+            <li><a href="../compare.html#matrix">Feature Matrix<small>Head-to-head capability grid</small></a></li>
+            <li><a href="../compare.html#vs-libraries">vs Libraries<small>go-rate, python-limits &amp; more</small></a></li>
+            <li><a href="../compare.html#vs-gateways">vs API Gateways<small>Kong, NGINX, Envoy plugins</small></a></li>
+            <li><a href="../compare.html#vs-cloud">vs Cloud-Native<small>AWS WAF, Azure Front Door, GCP</small></a></li>
+            <li><a href="../compare.html#vs-custom">vs Custom-Built<small>Redis + Lua, DIY middleware</small></a></li>
+          </ul>
+        </div>
+      </div>
+    </li>
+    <li><a href="../getting-started.html" class="nav-cta">Get Started</a></li>
+  </ul>
+</div></nav>
+
+<!-- BREADCRUMB -->
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="../index.html">Home</a>
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <a href="../ai-ml.html">AI &amp; ML</a>
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2l4 4-4 4" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <span>Embedding API Throttling</span>
+</nav>
+
+<div class="scenario-layout">
+<aside class="scenario-sidebar">
+  <h4>Scenarios</h4>
+  <ul>
+    <li><a href="token-budget.html"><svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6"/></svg>Token Budgets</a></li>
+    <li><a href="model-downgrade.html"><svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12l9 9 9-9"/></svg>Model Downgrade</a></li>
+    <li><a href="gpu-training.html"><svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>GPU Scheduling</a></li>
+    <li><a href="agent-guardrails.html"><svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Agent Guardrails</a></li>
+    <li><a href="cost-budget.html"><svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M15 9.5c-.5-1-1.5-1.5-3-1.5s-3 .8-3 2.25 1 2.25 3 2.75 3 1.25 3 2.75-1.5 2.25-3 2.25-2.5-.5-3-1.5"/></svg>Cost Enforcement</a></li>
+    <li><a href="embeddings-rag.html" class="sb-active"><svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><circle cx="4" cy="8" r="2"/><circle cx="20" cy="8" r="2"/><circle cx="4" cy="16" r="2"/><circle cx="20" cy="16" r="2"/><path d="M6 9l4.5 2M13.5 11L18 9M6 15l4.5-2M13.5 13L18 15"/></svg>Embeddings &amp; RAG</a></li>
+    <li><a href="streaming.html"><svg class="sb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h4l3-9 6 18 3-9h4"/></svg>Streaming Tokens</a></li>
+  </ul>
+</aside>
+<div class="scenario-main">
+
+<!-- SCENARIO HERO -->
+<section class="sc-hero">
+  <div class="sc-tag">Embeddings / RAG</div>
+  <h1>Embedding API Throttling</h1>
+  <p>Bulk indexing jobs hit provider rate limits and fail halfway through. Throttle your pipeline to just below the cap so every job completes without 429 errors.</p>
+</section>
+
+<!-- COMPARISON -->
+<section class="comparison-section">
+  <h2>Before &amp; After</h2>
+  <div class="comparison-panels">
+    <div class="panel panel-without">
+      <div class="panel-header">
+        <span class="panel-badge bad">Without RLAAS</span>
+        <h3>Indexing Job Fails at Document 38,000 with a 429</h3>
+      </div>
+      <div class="panel-body">
+        <ul class="panel-problems">
+          <li>Pipeline calls the embedding API as fast as possible — hits 3,000 RPM cap</li>
+          <li>Provider returns 429; job crashes mid-run and leaves the index half-updated</li>
+          <li>Exponential back-off is implemented inconsistently across services</li>
+          <li>Concurrent indexers don't know about each other's usage</li>
+        </ul>
+        <div class="code-snippet"><span class="cm"># ✗ Full speed — guaranteed 429 on large corpora</span>
+<span class="kw">async def</span> <span class="fn">index_documents</span>(docs: <span class="tp">list</span>[<span class="tp">str</span>]):
+    <span class="kw">for</span> doc <span class="kw">in</span> docs:
+<span class="bad-line">        embedding = <span class="kw">await</span> <span class="fn">embed</span>(doc)   <span class="cm"># no throttle — 429 mid-run</span></span>
+        <span class="kw">await</span> vector_store.<span class="fn">upsert</span>(embedding)</div>
+      </div>
+    </div>
+    <div class="panel panel-with">
+      <div class="panel-header">
+        <span class="panel-badge good">With RLAAS</span>
+        <h3>Throttle to Just Below the Cap — Job Completes First Time</h3>
+      </div>
+      <div class="panel-body">
+        <ul class="panel-benefits">
+          <li>RLAAS enforces 2,800 RPM across all indexers — safely below the 3,000 cap</li>
+          <li>Multiple concurrent indexers share the same RLAAS counter automatically</li>
+          <li>On deny: sleep for <code>retry_after</code> seconds and continue — zero restarts</li>
+          <li>Adjust the limit live to match provider tier upgrades</li>
+        </ul>
+        <div class="code-snippet"><span class="cm"># ✓ RLAAS throttles across all indexers sharing the counter</span>
+<span class="kw">async def</span> <span class="fn">index_documents</span>(docs: <span class="tp">list</span>[<span class="tp">str</span>]):
+    <span class="kw">for</span> doc <span class="kw">in</span> docs:
+<span class="good-line">        <span class="kw">while</span> <span class="kw">True</span>:</span>
+<span class="good-line">            decision = client.<span class="fn">check</span>(<span class="fn">CheckRequest</span>(</span>
+<span class="good-line">                user_id=<span class="st">"indexer-service"</span>, resource=<span class="st">"embed:openai"</span></span>
+<span class="good-line">            ))</span>
+<span class="good-line">            <span class="kw">if</span> decision.allowed: <span class="kw">break</span></span>
+<span class="good-line">            <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(decision.retry_after)</span>
+        embedding = <span class="kw">await</span> <span class="fn">embed</span>(doc)
+        <span class="kw">await</span> vector_store.<span class="fn">upsert</span>(embedding)</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how-section">
+  <div class="how-inner">
+    <h2>How It Works</h2>
+    <div class="how-grid">
+      <div class="how-panel">
+        <div class="how-panel-header"><h3>Policy Configuration</h3></div>
+        <div class="how-panel-body">
+          <pre class="config-code"><span style="color:#64748b"># Shared counter across all indexer instances</span>
+<span style="color:#f9a8d4">{</span>
+  <span style="color:#7dd3fc">"id"</span>: <span style="color:#86efac">"embed-openai-rpm"</span>,
+  <span style="color:#7dd3fc">"resource"</span>: <span style="color:#86efac">"embed:openai"</span>,
+  <span style="color:#7dd3fc">"algorithm"</span>: <span style="color:#86efac">"sliding_window_counter"</span>,
+  <span style="color:#7dd3fc">"config"</span>: <span style="color:#f9a8d4">{</span>
+    <span style="color:#7dd3fc">"limit"</span>: <span style="color:#fbbf24">2800</span>,
+    <span style="color:#7dd3fc">"window_seconds"</span>: <span style="color:#fbbf24">60</span>
+  <span style="color:#f9a8d4">}</span>,
+  <span style="color:#7dd3fc">"action_deny"</span>: <span style="color:#86efac">"reject"</span>,
+  <span style="color:#7dd3fc">"metadata"</span>: <span style="color:#f9a8d4">{</span>
+    <span style="color:#7dd3fc">"description"</span>: <span style="color:#86efac">"2,800 RPM — below 3k provider cap"</span>
+  <span style="color:#f9a8d4">}</span>
+<span style="color:#f9a8d4">}</span></pre>
+        </div>
+      </div>
+      <div class="how-panel">
+        <div class="how-panel-header"><h3>Request Flow</h3></div>
+        <div class="how-panel-body">
+          <ol class="steps">
+            <li><strong>Spin up multiple indexer workers</strong> — each calls RLAAS before embedding</li>
+            <li><strong>RLAAS shares one counter</strong> via Redis across all instances — total RPM capped globally</li>
+            <li><strong>If denied</strong> — sleep for <code>retry_after</code> seconds and retry; no crash, no restart</li>
+            <li><strong>Job completes</strong> — all documents indexed, provider never sees a 429</li>
+            <li><strong>Tier upgrade?</strong> — PATCH the limit to 5,800 and workers speed up immediately</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SDK EXAMPLES -->
+<section class="sdk-section">
+  <h2>SDK Examples</h2>
+  <p class="sdk-subtitle">Throttle embedding calls across distributed workers with a shared sliding window.</p>
+  <div class="tab-bar">
+    <button class="tab-btn active">Go</button>
+    <button class="tab-btn">Python</button>
+    <button class="tab-btn">TypeScript</button>
+    <button class="tab-btn">Node.js</button>
+    <button class="tab-btn">Java</button>
+    <button class="tab-btn">.NET</button>
+    <button class="tab-btn">C++</button>
+    <button class="tab-btn">Rust</button>
+    <button class="tab-btn">Ruby</button>
+  </div>
+  <div class="tab-panels">
+    <div class="tab-panel active">
+      <div class="sdk-code"><span class="cm">// index documents — throttled to 2,800 RPM across all workers</span>
+<span class="kw">func</span> (idx *<span class="tp">Indexer</span>) <span class="fn">IndexDocuments</span>(ctx <span class="tp">context.Context</span>, docs []<span class="tp">string</span>) <span class="tp">error</span> {
+    <span class="kw">for</span> _, doc := <span class="kw">range</span> docs {
+        <span class="kw">for</span> {
+            decision, err := idx.rlaas.<span class="fn">Check</span>(ctx, &amp;rlaas.<span class="tp">CheckRequest</span>{
+                UserID:   <span class="st">"indexer-service"</span>,
+                Resource: <span class="st">"embed:openai"</span>,
+            })
+            <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }
+            <span class="kw">if</span> decision.Allowed { <span class="kw">break</span> }
+            <span class="fn">select</span> {
+            <span class="kw">case</span> &lt;-ctx.<span class="fn">Done</span>(): <span class="kw">return</span> ctx.Err()
+            <span class="kw">case</span> &lt;-time.<span class="fn">After</span>(decision.RetryAfter):
+            }
+        }
+        emb, err := idx.<span class="fn">Embed</span>(ctx, doc)
+        <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }
+        <span class="kw">if</span> err := idx.store.<span class="fn">Upsert</span>(ctx, emb); err != <span class="kw">nil</span> { <span class="kw">return</span> err }
+    }
+    <span class="kw">return nil</span>
+}</div>
+    </div>
+    <div class="tab-panel">
+      <div class="sdk-code"><span class="cm"># Shared 2,800 RPM limit across all indexer processes</span>
+<span class="kw">import</span> asyncio
+<span class="kw">from</span> rlaas_sdk <span class="kw">import</span> <span class="tp">RlaasClient</span>, <span class="tp">CheckRequest</span>
+
+client = <span class="fn">RlaasClient</span>(base_url=<span class="st">"http://rlaas:8080"</span>)
+
+<span class="kw">async def</span> <span class="fn">index_documents</span>(docs: <span class="tp">list</span>[<span class="tp">str</span>]):
+    <span class="kw">for</span> doc <span class="kw">in</span> docs:
+        <span class="kw">while True</span>:
+            decision = client.<span class="fn">check</span>(<span class="fn">CheckRequest</span>(
+                user_id=<span class="st">"indexer-service"</span>,
+                resource=<span class="st">"embed:openai"</span>,
+            ))
+            <span class="kw">if</span> decision.allowed:
+                <span class="kw">break</span>
+            <span class="kw">await</span> asyncio.<span class="fn">sleep</span>(decision.retry_after)
+        embedding = <span class="kw">await</span> <span class="fn">embed</span>(doc)
+        <span class="kw">await</span> vector_store.<span class="fn">upsert</span>(embedding)</div>
+    </div>
+    <div class="tab-panel">
+      <div class="sdk-code"><span class="cm">// Shared 2,800 RPM — safe below provider 3k cap</span>
+<span class="kw">async function</span> <span class="fn">indexDocuments</span>(docs: <span class="tp">string</span>[]) {
+  <span class="kw">for</span> (<span class="kw">const</span> doc <span class="kw">of</span> docs) {
+    <span class="kw">while</span> (<span class="kw">true</span>) {
+      <span class="kw">const</span> decision = <span class="kw">await</span> rlaas.<span class="fn">check</span>({
+        userId: <span class="st">'indexer-service'</span>,
+        resource: <span class="st">'embed:openai'</span>,
+      });
+      <span class="kw">if</span> (decision.allowed) <span class="kw">break</span>;
+      <span class="kw">await</span> <span class="kw">new</span> <span class="tp">Promise</span>(res =>
+        <span class="fn">setTimeout</span>(res, decision.retryAfter * <span class="nm">1000</span>)
+      );
+    }
+    <span class="kw">const</span> embedding = <span class="kw">await</span> <span class="fn">embed</span>(doc);
+    <span class="kw">await</span> vectorStore.<span class="fn">upsert</span>(embedding);
+  }
+}</div>
+    </div>
+    <div class="tab-panel">
+      <div class="sdk-code"><span class="cm">// Shared 2,800 RPM limit across all indexer instances</span>
+<span class="kw">import</span> io.rlaas.sdk.<span class="tp">RlaasClient</span>;
+<span class="kw">import</span> io.rlaas.sdk.model.*;
+
+<span class="tp">RlaasClient</span> rlaas = <span class="kw">new</span> <span class="fn">RlaasClient</span>(<span class="st">"http://rlaas:8080"</span>);
+
+<span class="kw">void</span> <span class="fn">indexDocuments</span>(<span class="tp">List</span>&lt;<span class="tp">String</span>&gt; docs) <span class="kw">throws</span> <span class="tp">Exception</span> {
+    <span class="kw">for</span> (<span class="tp">String</span> doc : docs) {
+        <span class="kw">while</span> (<span class="kw">true</span>) {
+            <span class="tp">Decision</span> decision = rlaas.<span class="fn">checkLimit</span>(
+                <span class="kw">new</span> <span class="fn">CheckRequest</span>(<span class="st">"indexer-service"</span>, <span class="st">"embed:openai"</span>));
+            <span class="kw">if</span> (decision.<span class="fn">isAllowed</span>()) <span class="kw">break</span>;
+            <span class="tp">Thread</span>.<span class="fn">sleep</span>((<span class="kw">long</span>) (decision.<span class="fn">getRetryAfter</span>() * <span class="nm">1000</span>));
+        }
+        <span class="kw">var</span> embedding = <span class="fn">embed</span>(doc);
+        vectorStore.<span class="fn">upsert</span>(embedding);
+    }
+}</div>
+    </div>
+    <div class="tab-panel">
+      <div class="sdk-code"><span class="cm">// Shared 2,800 RPM limit across all indexer instances</span>
+<span class="kw">using</span> Rlaas.Sdk;
+<span class="kw">using</span> Rlaas.Sdk.Models;
+
+<span class="kw">var</span> rlaas = <span class="kw">new</span> <span class="fn">RlaasClient</span>(<span class="st">"http://rlaas:8080"</span>);
+
+<span class="kw">async</span> <span class="tp">Task</span> <span class="fn">IndexDocumentsAsync</span>(<span class="tp">List</span>&lt;<span class="tp">string</span>&gt; docs)
+{
+    <span class="kw">foreach</span> (<span class="kw">var</span> doc <span class="kw">in</span> docs)
+    {
+        <span class="kw">while</span> (<span class="kw">true</span>)
+        {
+            <span class="kw">var</span> decision = <span class="kw">await</span> rlaas.<span class="fn">CheckLimitAsync</span>(
+                <span class="kw">new</span> <span class="fn">CheckRequest</span>(<span class="st">"indexer-service"</span>, <span class="st">"embed:openai"</span>));
+            <span class="kw">if</span> (decision.Allowed) <span class="kw">break</span>;
+            <span class="kw">await</span> <span class="tp">Task</span>.<span class="fn">Delay</span>(<span class="tp">TimeSpan</span>.<span class="fn">FromSeconds</span>(decision.RetryAfter));
+        }
+        <span class="kw">var</span> embedding = <span class="kw">await</span> <span class="fn">EmbedAsync</span>(doc);
+        <span class="kw">await</span> vectorStore.<span class="fn">UpsertAsync</span>(embedding);
+    }
+}</div>
+    </div>
+    <div class="tab-panel">
+      <div class="sdk-code"><span class="cm">// embedding rate limiter (Node.js)</span>
+<span class="kw">const</span> { <span class="tp">RlaasClient</span> } = <span class="fn">require</span>(<span class="st">'@rlaas/node-sdk'</span>);
+
+<span class="kw">const</span> client = <span class="kw">new</span> <span class="fn">RlaasClient</span>(<span class="st">'http://rlaas:8080'</span>);
+
+<span class="kw">async function</span> <span class="fn">embedWithLimit</span>(chunks) {
+  <span class="kw">for</span> (<span class="kw">const</span> chunk <span class="kw">of</span> chunks) {
+    <span class="kw">let</span> decision = <span class="kw">await</span> client.<span class="fn">check</span>({
+      resource: <span class="st">'ai:embeddings'</span>,
+      tokens:   chunk.token_count,
+    });
+    <span class="kw">while</span> (!decision.allowed) {
+      <span class="kw">await</span> <span class="fn">sleep</span>(decision.retry_after * <span class="st">1000</span>);
+      decision = <span class="kw">await</span> client.<span class="fn">check</span>({
+        resource: <span class="st">'ai:embeddings'</span>, tokens: chunk.token_count });
+    }
+    <span class="kw">const</span> vec = <span class="kw">await</span> <span class="fn">embed</span>(chunk.text);
+    <span class="kw">await</span> vectorStore.<span class="fn">upsert</span>(chunk.id, vec);
+  }
+}</div>
+    </div>
+    <div class="tab-panel">
+      <div class="sdk-code"><span class="cm">// embedding rate limiter (C++)</span>
+#<span class="kw">include</span> <span class="st">"rlaas/client.h"</span>
+
+rlaas::<span class="tp">Client</span> client(<span class="st">"http://rlaas:8080"</span>);
+
+<span class="kw">void</span> <span class="fn">embed_with_limit</span>(<span class="kw">const</span> std::vector&lt;<span class="tp">Chunk</span>&gt;&amp; chunks) {
+    <span class="kw">for</span> (<span class="kw">const auto</span>&amp; chunk : chunks) {
+        rlaas::<span class="tp">CheckRequest</span> req;
+        req.resource = <span class="st">"ai:embeddings"</span>;
+        req.tokens   = chunk.token_count;
+        <span class="kw">auto</span> decision = client.<span class="fn">check</span>(req);
+        <span class="kw">while</span> (!decision.allowed) {
+            <span class="fn">sleep_ms</span>(decision.retry_after_ms);
+            decision = client.<span class="fn">check</span>(req);
+        }
+        <span class="kw">auto</span> vec = <span class="fn">embed</span>(chunk.text);
+        vector_store.<span class="fn">upsert</span>(chunk.id, vec);
+    }
+}</div>
+    </div>
+    <div class="tab-panel">
+      <div class="sdk-code"><span class="cm">// embedding rate limiter (Rust)</span>
+<span class="kw">use</span> rlaas_sdk::{<span class="tp">Client</span>, <span class="tp">CheckRequest</span>};
+
+<span class="kw">let</span> client = <span class="tp">Client</span>::<span class="fn">new</span>(<span class="st">"http://rlaas:8080"</span>);
+
+<span class="kw">async fn</span> <span class="fn">embed_with_limit</span>(client: &amp;<span class="tp">Client</span>, chunks: &amp;[<span class="tp">Chunk</span>]) -&gt; <span class="tp">Result</span>&lt;()&gt; {
+    <span class="kw">for</span> chunk <span class="kw">in</span> chunks {
+        <span class="kw">let mut</span> decision = client.<span class="fn">check</span>(&amp;<span class="tp">CheckRequest</span> {
+            resource: <span class="st">"ai:embeddings"</span>.<span class="fn">into</span>(),
+            tokens:   <span class="tp">Some</span>(chunk.token_count),
+            ..<span class="tp">Default</span>::<span class="fn">default</span>()
+        }).<span class="kw">await</span>?;
+        <span class="kw">while</span> !decision.allowed {
+            tokio::time::<span class="fn">sleep</span>(decision.retry_after).<span class="kw">await</span>;
+            decision = client.<span class="fn">check</span>(&amp;req).<span class="kw">await</span>?;
+        }
+        <span class="kw">let</span> vec = <span class="fn">embed</span>(&amp;chunk.text).<span class="kw">await</span>?;
+        vector_store.<span class="fn">upsert</span>(&amp;chunk.id, &amp;vec).<span class="kw">await</span>?;
+    }
+    <span class="tp">Ok</span>(())
+}</div>
+    </div>
+    <div class="tab-panel">
+      <div class="sdk-code"><span class="cm"># embedding rate limiter (Ruby)</span>
+<span class="kw">require</span> <span class="st">'rlaas_sdk'</span>
+
+client = <span class="tp">Rlaas</span>::<span class="tp">Client</span>.<span class="fn">new</span>(<span class="st">'http://rlaas:8080'</span>)
+
+<span class="kw">def</span> <span class="fn">embed_with_limit</span>(chunks)
+  chunks.<span class="fn">each</span> <span class="kw">do</span> |chunk|
+    decision = client.<span class="fn">check</span>(
+      resource: <span class="st">'ai:embeddings'</span>,
+      tokens:   chunk.token_count
+    )
+    <span class="kw">until</span> decision.allowed
+      <span class="fn">sleep</span>(decision.retry_after)
+      decision = client.<span class="fn">check</span>(resource: <span class="st">'ai:embeddings'</span>,
+        tokens: chunk.token_count)
+    <span class="kw">end</span>
+    vec = <span class="fn">embed</span>(chunk.text)
+    vector_store.<span class="fn">upsert</span>(chunk.id, vec)
+  <span class="kw">end</span>
+<span class="kw">end</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- PREV / NEXT -->
+<div class="scenario-nav-bar">
+  <div class="scenario-nav-inner">
+    <a href="cost-budget.html" class="snav-btn">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M13 8H3M7 12l-4-4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Dollar Spend Enforcement
+      <span class="snav-meta">Previous scenario</span>
+    </a>
+    <a href="../ai-ml.html" class="snav-btn center">All Scenarios</a>
+    <a href="streaming.html" class="snav-btn">
+      Streaming Token Accounting
+      <span class="snav-meta">Next scenario</span>
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </div>
+</div>
+
+</div><!-- /.scenario-main -->
+</div><!-- /.scenario-layout -->
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-inner">
+    <ul class="footer-links">
+      <li><a href="../index.html">Why RLAAS</a></li>
+      <li><a href="../features.html">Features</a></li>
+      <li><a href="../design.html">Design</a></li>
+      <li><a href="../architecture.html">Architecture</a></li>
+      <li><a href="../api.html">API Reference</a></li>
+      <li><a href="../sdks.html">SDKs</a></li>
+      <li><a href="../providers.html">Providers</a></li>
+      <li><a href="../ai-ml.html">AI &amp; ML</a></li>
+      <li><a href="../getting-started.html">Get Started</a></li>
+    </ul>
+    <p>RLAAS &mdash; Rate Limiting As A Service &copy; 2025&ndash;2026</p>
+  </div>
+</footer>
+
+<script src="../js/nav.js"></script>
+<script>
+(function(){
+  var bars = document.querySelectorAll('.tab-bar');
+  bars.forEach(function(bar){
+    var btns = bar.querySelectorAll('.tab-btn');
+    var container = bar.nextElementSibling;
+    btns.forEach(function(btn, i){
+      btn.addEventListener('click', function(){
+        btns.forEach(function(b){ b.classList.remove('active'); });
+        btn.classList.add('active');
+        container.querySelectorAll('.tab-panel').forEach(function(p, j){
+          p.classList.toggle('active', j===i);
+        });
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

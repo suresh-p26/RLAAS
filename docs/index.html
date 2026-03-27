@@ -5,31 +5,99 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RLAAS — Rate Limiting As A Service</title>
   <meta name="description" content="RLAAS is a policy-driven platform for rate limiting, quotas, and traffic control across APIs and service workloads. Supports fixed window, token bucket, sliding window, concurrency limiting, and more." />
-  <meta name="keywords" content="rate limiting, API rate limit, traffic control, quota management, token bucket, sliding window, concurrency limiter, Go, gRPC, microservices" />
+  <meta name="keywords" content="rate limiting, API rate limit, traffic control, quota management, token bucket, sliding window, concurrency limiter, Go, gRPC, microservices, C++, Rust, Ruby" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-</head>
+  <style>
+    /* ── Before / After AI/ML diagram ── */
+    .ba-diagram { display: flex; align-items: stretch; gap: 0; border: 1px solid var(--border-light); border-radius: 14px; overflow: hidden; margin: 0 auto; max-width: 960px; }
+    .ba-diagram-col { flex: 1; padding: 1.5rem 1.75rem; }
+    .ba-diagram-without { background: #fef2f2; }
+    .ba-diagram-with    { background: #f0fdf4; }
+    .ba-diagram-arrow { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 1rem; background: var(--bg-alt); border-left: 1px solid var(--border-light); border-right: 1px solid var(--border-light); gap: .25rem; min-width: 72px; }
+    .ba-diagram-arrow span { font-size: .7rem; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: .06em; }
+    .ba-label { display: inline-block; font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: .2rem .7rem; border-radius: 20px; margin-bottom: .75rem; }
+    .ba-label-before { color: #b91c1c; background: #fee2e2; }
+    .ba-label-after  { color: #15803d; background: #dcfce7; }
+    .ba-diagram-row { display: flex; align-items: flex-start; gap: .5rem; font-size: .88rem; line-height: 1.5; padding: .3rem 0; }
+    .ba-icon-x  { color: #dc2626; font-weight: 700; flex-shrink: 0; }
+    .ba-icon-ok { color: #16a34a; font-weight: 700; flex-shrink: 0; }
+    @media (max-width: 768px) {
+      .ba-diagram { flex-direction: column; }
+      .ba-diagram-arrow { flex-direction: row; padding: .5rem 1rem; border-left: none; border-right: none; border-top: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light); min-width: auto; }
+      .ba-diagram-arrow svg { transform: rotate(90deg); width: 32px; height: 32px; }
+    }
+  </style>
 <body>
 
 <!-- ═══════════════════════════ NAV ═══════════════════════════ -->
 <nav class="nav" id="nav">
   <div class="nav-inner">
-    <a href="index.html" class="nav-logo">RLAAS<span>.</span></a>
-    <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
+    <a href="index.html" class="nav-logo">RLAAS API</a>
+    <button class="nav-toggle" aria-label="Menu">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <ul class="nav-links">
-      <li><a href="index.html" class="active">Home</a></li>
-      <li><a href="features.html">Features</a></li>
-      <li><a href="design.html">Design</a></li>
-      <li><a href="api.html">API</a></li>
-      <li><a href="sdks.html">SDKs</a></li>
-      <li><a href="providers.html">Providers</a></li>
-      <li><a href="getting-started.html">Get Started</a></li>
-    </ul>
+    <li><a href="index.html" class="active">Why RLAAS</a></li>
+    <li>
+      <button class="nav-dropdown-toggle">Product <svg class="chevron" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="nav-dropdown-menu nav-mega nav-mega-cols">
+        <div class="nav-mega-group">
+          <h5>Platform</h5>
+          <ul>
+            <li><a href="features.html">Features<small>Core rate limiting capabilities</small></a></li>
+            <li><a href="design.html">Design<small>Algorithm deep-dive</small></a></li>
+            <li><a href="architecture.html">Architecture<small>System design &amp; internals</small></a></li>
+          </ul>
+        </div>
+        <div class="nav-mega-group">
+          <h5>Integrate</h5>
+          <ul>
+            <li><a href="providers.html">Providers<small>OTel, Datadog, Envoy, Kafka &amp; more</small></a></li>
+            <li><a href="ai-ml.html">AI &amp; ML<small>LLM &amp; agent rate limiting</small></a></li>
+          </ul>
+        </div>
+      </div>
+    </li>
+    <li>
+      <button class="nav-dropdown-toggle">Developers <svg class="chevron" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="nav-dropdown-menu nav-mega nav-mega-cols">
+        <div class="nav-mega-group">
+          <h5>Build</h5>
+          <ul>
+            <li><a href="api.html">API Reference<small>REST &amp; gRPC endpoints</small></a></li>
+            <li><a href="sdks.html">SDKs<small>Go, Python, TypeScript &amp; 6 more</small></a></li>
+            <li><a href="api-collections.html">API Collections<small>Insomnia &amp; Postman downloads</small></a></li>
+          </ul>
+        </div>
+        <div class="nav-mega-group">
+          <h5>Learn</h5>
+          <ul>
+            <li><a href="getting-started.html">Getting Started<small>Quick start guide</small></a></li>
+          </ul>
+        </div>
+      </div>
+    </li>
+    <li>
+      <button class="nav-dropdown-toggle">Compare <svg class="chevron" viewBox="0 0 10 10" fill="none"><path d="M2 4l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="nav-dropdown-menu nav-mega">
+        <div class="nav-mega-group">
+          <h5>RLAAS vs Alternatives</h5>
+          <ul>
+            <li><a href="compare.html#matrix">Feature Matrix<small>Head-to-head capability grid</small></a></li>
+            <li><a href="compare.html#vs-libraries">vs Libraries<small>go-rate, python-limits &amp; more</small></a></li>
+            <li><a href="compare.html#vs-gateways">vs API Gateways<small>Kong, NGINX, Envoy plugins</small></a></li>
+            <li><a href="compare.html#vs-cloud">vs Cloud-Native<small>AWS WAF, Azure Front Door, GCP</small></a></li>
+            <li><a href="compare.html#vs-custom">vs Custom-Built<small>Redis + Lua, DIY middleware</small></a></li>
+          </ul>
+        </div>
+      </div>
+    </li>
+    <li><a href="getting-started.html" class="nav-cta">Get Started</a></li>
+  </ul>
   </div>
 </nav>
 
@@ -138,29 +206,28 @@
   <h2>Architecture at a Glance</h2>
   <p>RLAAS separates policy storage from counter storage and uses a canonical internal model so every deployment mode shares the same evaluation engine.</p>
 
-  <div class="arch-diagram">
-┌─────────────────────────────────────────────────────────────────┐
-│                         Clients                                 │
-│   Go SDK  │  HTTP/gRPC  │  Python  │  TypeScript  │  Java/.NET │
-└─────┬─────┴──────┬──────┴─────┬────┴──────┬───────┴────┬───────┘
-      │            │            │           │            │
-      ▼            ▼            ▼           ▼            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    RLAAS Decision Engine                         │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────┐  │
-│  │  Matcher  │→ │Algorithm │→ │ Decision │→ │  Analytics /    │  │
-│  │  (scope   │  │(fixed,   │  │ Builder  │  │  Audit Logger  │  │
-│  │  + expr)  │  │ token,.. │  │          │  │                │  │
-│  └──────────┘  └──────────┘  └──────────┘  └────────────────┘  │
-│                       │                                         │
-│           ┌───────────┴──────────┐                              │
-│           ▼                      ▼                              │
-│    ┌─────────────┐       ┌─────────────┐                        │
-│    │Counter Store│       │Policy Store  │                        │
-│    │ Memory/Redis│       │ File/PG/ORA  │                        │
-│    └─────────────┘       └─────────────┘                        │
-└─────────────────────────────────────────────────────────────────┘
+  <div class="arch-embed-wrap" style="position:relative;overflow:hidden;border-radius:12px;border:1px solid rgba(0,0,0,0.1);margin:1.5rem 0;">
+    <iframe src="../rlaas-architecture.html" id="archIframe" scrolling="no" frameborder="0" title="RLAAS System Architecture"></iframe>
+    <a href="architecture.html" target="_blank" style="position:absolute;bottom:12px;right:14px;background:rgba(99,102,241,0.9);color:#fff;font-size:11px;font-weight:600;padding:5px 12px;border-radius:6px;text-decoration:none;letter-spacing:0.5px;backdrop-filter:blur(4px);">Open full diagram ↗</a>
   </div>
+  <script>
+  (function(){
+    var iframe = document.getElementById('archIframe');
+    var wrap = iframe.parentElement;
+    function scale() {
+      var s = wrap.offsetWidth / 1200;
+      iframe.style.transform = 'scale(' + s + ')';
+      iframe.style.transformOrigin = 'top left';
+      iframe.style.width = '1200px';
+      iframe.style.height = '860px';
+      iframe.style.border = 'none';
+      wrap.style.height = Math.round(860 * s) + 'px';
+    }
+    if (iframe.complete) { scale(); } else { iframe.onload = scale; }
+    window.addEventListener('resize', scale);
+    scale();
+  })();
+  </script>
 
   <div class="callout callout-tip">
     <strong>Design Principle</strong>
@@ -244,7 +311,7 @@
 <section class="features-section">
   <div class="features-header">
     <h2>Client SDKs for Every Stack</h2>
-    <p>Native Go plus four HTTP client SDKs — integrate in minutes.</p>
+    <p>Native Go plus eight HTTP client SDKs — integrate in minutes, regardless of your tech stack.</p>
   </div>
 
   <div class="info-cards" style="max-width:var(--wide-width);margin:0 auto;">
@@ -261,12 +328,28 @@
       <p>Modern <code>fetch</code>-based client. Type-safe interfaces. Works in Node.js and edge runtimes.</p>
     </div>
     <div class="info-card">
+      <h4>Node.js</h4>
+      <p>Zero-dependency pure JS client. <code>require()</code> or <code>import</code>. Express &amp; Fastify middleware included.</p>
+    </div>
+    <div class="info-card">
       <h4>Java</h4>
       <p><code>java.net.http.HttpClient</code> with Jackson. Java 11+ compatible. Full CRUD support.</p>
     </div>
     <div class="info-card">
       <h4>.NET</h4>
       <p><code>HttpClient</code> with <code>System.Text.Json</code>. Async/await, CancellationToken. .NET 8 ready.</p>
+    </div>
+    <div class="info-card">
+      <h4>C++</h4>
+      <p>libcurl + nlohmann/json. CMake <code>FetchContent</code> integration. C++17, thread-safe client.</p>
+    </div>
+    <div class="info-card">
+      <h4>Rust</h4>
+      <p>Async <code>reqwest</code> + <code>tokio</code>. Fully typed with serde. <code>Clone</code>-able for multi-task use.</p>
+    </div>
+    <div class="info-card">
+      <h4>Ruby</h4>
+      <p>Zero runtime dependencies — stdlib only. Rails <code>before_action</code> middleware included.</p>
     </div>
   </div>
 
@@ -363,6 +446,81 @@
   <p><a href="api.html" class="btn btn-primary">Full API Reference →</a></p>
 </section>
 
+<!-- ═══════════════════════════ AI/ML SHOWCASE ═══════════════════════════ -->
+<section class="features-section" style="background:var(--bg);">
+  <div class="features-header">
+    <h2>Built for AI &amp; ML Workloads</h2>
+    <p>RLAAS handles every rate limiting challenge that comes with running LLMs, GPU training, AI agents, and RAG pipelines in production.</p>
+  </div>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🪙</div>
+      <h3>Token Budget Management</h3>
+      <p>Enforce daily or monthly token limits per user, per org, or per pricing tier — scoped to a specific model. Pass <code>quantity: token_count</code> and the quota algorithm deducts real token cost, not just request count.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⬇️</div>
+      <h3>Auto-Downgrade to Cheaper Models</h3>
+      <p>When a premium model's RPM is exhausted, return <code>action: "downgrade"</code> — the caller routes to GPT-3.5 or Claude Haiku automatically. No error, no user-visible failure, no redeploy.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🖥️</div>
+      <h3>GPU Slot Fairness</h3>
+      <p>Cap concurrent GPU training jobs per org with the concurrency limiter. Acquire/release holds the slot for the full job duration — auto-released via TTL if the job crashes.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🤖</div>
+      <h3>AI Agent Guardrails</h3>
+      <p>Autonomous agents can spiral into thousands of tool calls per minute. Rate-limit each tool type per session with a sliding window — give agents the <code>retry_after</code> hint so they can plan around the constraint.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">💰</div>
+      <h3>Dollar Budget Enforcement</h3>
+      <p>Map API cost to RLAAS units (e.g. 1 unit = $0.00001) and enforce a hard daily spend cap per tenant. No surprise bills. Change the budget live via the policy API — zero deploy.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🌊</div>
+      <h3>Streaming Token Accounting</h3>
+      <p>Two-phase pattern for streaming LLM responses: pre-check on known input tokens, then deduct actual output tokens after the stream ends. Fail-open on the second phase so a network blip never breaks UX.</p>
+    </div>
+  </div>
+
+  <!-- ── WITHOUT vs WITH RLAAS — compact diagram ── -->
+  <div style="max-width:var(--wide-width);margin:2.5rem auto 0;padding:0 1rem;">
+
+    <div class="ba-diagram">
+      <div class="ba-diagram-col ba-diagram-without">
+        <div class="ba-label ba-label-before">✗ Without RLAAS</div>
+        <div class="ba-diagram-row"><span class="ba-icon-x">✗</span> Hard-coded limits — same for every user</div>
+        <div class="ba-diagram-row"><span class="ba-icon-x">✗</span> Surprise $800+ GPT-4 bills from monthly invoice</div>
+        <div class="ba-diagram-row"><span class="ba-icon-x">✗</span> 429 errors propagate directly to end users</div>
+        <div class="ba-diagram-row"><span class="ba-icon-x">✗</span> Runaway agents burn API credits in minutes</div>
+        <div class="ba-diagram-row"><span class="ba-icon-x">✗</span> GPU slots locked forever when jobs crash</div>
+        <div class="ba-diagram-row"><span class="ba-icon-x">✗</span> Every change needs a code deploy</div>
+      </div>
+      <div class="ba-diagram-arrow">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none"><path d="M8 24h28M30 16l8 8-8 8" stroke="#6366f1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Add RLAAS</span>
+      </div>
+      <div class="ba-diagram-col ba-diagram-with">
+        <div class="ba-label ba-label-after">✓ With RLAAS</div>
+        <div class="ba-diagram-row"><span class="ba-icon-ok">✓</span> Per-org, per-model, per-tier token budgets</div>
+        <div class="ba-diagram-row"><span class="ba-icon-ok">✓</span> Real-time cost tracking — hard daily caps</div>
+        <div class="ba-diagram-row"><span class="ba-icon-ok">✓</span> Auto-downgrade: GPT-4 → 3.5 → Haiku seamlessly</div>
+        <div class="ba-diagram-row"><span class="ba-icon-ok">✓</span> Per-tool, per-session guardrails with retry_after</div>
+        <div class="ba-diagram-row"><span class="ba-icon-ok">✓</span> Concurrency limiter with TTL auto-release</div>
+        <div class="ba-diagram-row"><span class="ba-icon-ok">✓</span> Live policy changes via API — zero deploy</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="text-align:center;margin-top:2rem;">
+    <a href="ai-ml.html" class="btn btn-primary">See All AI &amp; ML Scenarios →</a>
+  </div>
+</section>
+
 <!-- ═══════════════════════════ CTA ═══════════════════════════ -->
 <section style="background:var(--bg-hero);color:#fff;text-align:center;padding:5rem 2rem;">
   <h2 style="color:#fff;margin-top:0;font-size:2.2rem;">Ready to Protect Your APIs?</h2>
@@ -377,14 +535,19 @@
 <footer class="footer">
   <div class="footer-inner">
     <ul class="footer-links">
-      <li><a href="index.html">Home</a></li>
+      <li><a href="index.html">Why RLAAS</a></li>
       <li><a href="features.html">Features</a></li>
-      <li><a href="design.html">Design Document</a></li>
+      <li><a href="design.html">Design</a></li>
+      <li><a href="architecture.html">Architecture</a></li>
       <li><a href="api.html">API Reference</a></li>
       <li><a href="sdks.html">SDKs</a></li>
+      <li><a href="providers.html">Providers</a></li>
+      <li><a href="ai-ml.html">AI &amp; ML</a></li>
+      <li><a href="api-collections.html">API Collections</a></li>
+      <li><a href="compare.html">Compare</a></li>
       <li><a href="getting-started.html">Get Started</a></li>
     </ul>
-    <p>RLAAS — Rate Limiting As A Service &copy; 2024&ndash;2026</p>
+    <p>RLAAS &mdash; Rate Limiting As A Service &copy; 2025&ndash;2026</p>
   </div>
 </footer>
 
@@ -399,5 +562,6 @@ window.addEventListener('scroll',()=>{
 });
 </script>
 
+<script src="js/nav.js"></script>
 </body>
 </html>

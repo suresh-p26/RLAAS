@@ -1,0 +1,20 @@
+{
+  "name": "@rlaas/node-sdk",
+  "version": "0.1.0",
+  "description": "Node.js SDK for RLAAS HTTP APIs — zero dependencies, CJS + ESM, Express/Fastify middleware included",
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "require": "./index.js",
+      "import": "./index.mjs"
+    },
+    "./middleware": {
+      "require": "./lib/middleware.js",
+      "import": "./lib/middleware.mjs"
+    }
+  },
+  "engines": { "node": ">=16" },
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/rlaas-io/rlaas" },
+  "keywords": ["rlaas", "rate-limit", "api", "node", "express", "fastify"]
+}
