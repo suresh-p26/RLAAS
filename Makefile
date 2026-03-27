@@ -1,14 +1,23 @@
 .PHONY: build test lint vet fmt tidy vuln docker clean
 
 # ── Variables ─────────────────────────────────────────────────
-GO       ?= go
-GOFLAGS  ?= -race
-BIN_DIR  := bin
-SERVER   := $(BIN_DIR)/rlaas-server
-AGENT    := $(BIN_DIR)/rlaas-agent
-LDFLAGS  := -ldflags="-s -w"
-COVERAGE := coverage.out
-MIN_COV  := 90
+GO         ?= go
+GOFLAGS    ?= -race
+BIN_DIR    := bin
+SERVER     := $(BIN_DIR)/rlaas-server
+AGENT      := $(BIN_DIR)/rlaas-agent
+COVERAGE   := coverage.out
+MIN_COV    := 90
+
+# Build-time version metadata injected into the binary.
+VERSION    := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT     := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+BUILT      := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+PKG        := github.com/rlaas-io/rlaas/internal/version
+LDFLAGS    := -ldflags="-s -w \
+  -X '$(PKG).Version=$(VERSION)' \
+  -X '$(PKG).Commit=$(COMMIT)' \
+  -X '$(PKG).BuildTime=$(BUILT)'"
 
 # ── Build ─────────────────────────────────────────────────────
 build: $(SERVER) $(AGENT)
@@ -38,7 +47,10 @@ vet:
 tidy:
 	$(GO) mod tidy
 
-lint: vet fmt tidy
+golangci:
+	golangci-lint run ./...
+
+lint: vet fmt tidy golangci
 
 # ── Security ──────────────────────────────────────────────────
 vuln:
@@ -64,7 +76,8 @@ help:
 	@echo "make fmt            Format all Go files"
 	@echo "make vet            Run go vet"
 	@echo "make tidy           Run go mod tidy"
-	@echo "make lint           Run vet + fmt + tidy"
+	@echo "make golangci       Run golangci-lint"
+	@echo "make lint           Run vet + fmt + tidy + golangci-lint"
 	@echo "make vuln           Run govulncheck"
 	@echo "make docker         Build Docker image"
 	@echo "make docker-compose Start full stack with Redis + Postgres"

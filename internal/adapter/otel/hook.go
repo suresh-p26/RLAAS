@@ -2,6 +2,7 @@ package otel
 
 import (
 	"context"
+
 	"github.com/rlaas-io/rlaas/pkg/model"
 )
 

@@ -6,106 +6,90 @@ import (
 	"time"
 
 	miniredis "github.com/alicebob/miniredis/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRedisStoreOps(t *testing.T) {
 	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis failed: %v", err)
-	}
+	require.NoError(t, err, "miniredis failed")
 	defer mr.Close()
 
 	s := New(mr.Addr(), "", 0)
 	ctx := context.Background()
 
 	v, err := s.Increment(ctx, "k", 1, time.Second)
-	if err != nil || v != 1 {
-		t.Fatalf("increment failed")
-	}
+	require.NoError(t, err, "increment failed")
+	assert.Equal(t, int64(1), v, "increment value")
+
 	g, err := s.Get(ctx, "k")
-	if err != nil || g != 1 {
-		t.Fatalf("get failed")
-	}
-	if err := s.Set(ctx, "k", 3, time.Second); err != nil {
-		t.Fatalf("set failed")
-	}
+	require.NoError(t, err, "get failed")
+	assert.Equal(t, int64(1), g, "get value")
+
+	require.NoError(t, s.Set(ctx, "k", 3, time.Second), "set failed")
+
 	ok, err := s.CompareAndSwap(ctx, "k", 3, 4, time.Second)
-	if err != nil || !ok {
-		t.Fatalf("cas should pass")
-	}
+	require.NoError(t, err, "cas should pass")
+	assert.True(t, ok, "cas should return ok")
+
 	ok, err = s.CompareAndSwap(ctx, "k", 3, 5, time.Second)
-	if err != nil || ok {
-		t.Fatalf("cas should fail")
-	}
-	if err := s.Delete(ctx, "k"); err != nil {
-		t.Fatalf("delete failed")
-	}
-	if g0, err := s.Get(ctx, "missing"); err != nil || g0 != 0 {
-		t.Fatalf("missing key should return zero")
-	}
-	if err := s.client.Set(ctx, "badint", "abc", time.Second).Err(); err != nil {
-		t.Fatalf("setup parse failure failed")
-	}
-	if _, err := s.Get(ctx, "badint"); err == nil {
-		t.Fatalf("expected parse error")
-	}
+	require.NoError(t, err, "cas should fail cleanly")
+	assert.False(t, ok, "cas should not swap on mismatch")
+
+	require.NoError(t, s.Delete(ctx, "k"), "delete failed")
+
+	g0, getErr := s.Get(ctx, "missing")
+	require.NoError(t, getErr, "missing key should not error")
+	assert.Equal(t, int64(0), g0, "missing key should return zero")
+
+	require.NoError(t, s.client.Set(ctx, "badint", "abc", time.Second).Err(), "setup parse failure")
+	_, err = s.Get(ctx, "badint")
+	require.Error(t, err, "expected parse error")
 
 	now := time.Now()
-	if err := s.AddTimestamp(ctx, "ts", now.Add(-time.Second), time.Second); err != nil {
-		t.Fatalf("add ts failed")
-	}
-	if err := s.AddTimestamp(ctx, "ts", now, time.Second); err != nil {
-		t.Fatalf("add ts failed")
-	}
-	if c, err := s.CountAfter(ctx, "ts", now.Add(-500*time.Millisecond)); err != nil || c != 1 {
-		t.Fatalf("count after failed")
-	}
-	if err := s.TrimBefore(ctx, "ts", now.Add(-500*time.Millisecond)); err != nil {
-		t.Fatalf("trim failed")
-	}
+	require.NoError(t, s.AddTimestamp(ctx, "ts", now.Add(-time.Second), time.Second), "add ts failed")
+	require.NoError(t, s.AddTimestamp(ctx, "ts", now, time.Second), "add ts failed")
+
+	c, err := s.CountAfter(ctx, "ts", now.Add(-500*time.Millisecond))
+	require.NoError(t, err, "count after failed")
+	assert.Equal(t, int64(1), c, "count after value")
+
+	require.NoError(t, s.TrimBefore(ctx, "ts", now.Add(-500*time.Millisecond)), "trim failed")
 
 	ok, cur, err := s.AcquireLease(ctx, "lease", 1, time.Second)
-	if err != nil || !ok || cur != 1 {
-		t.Fatalf("lease should pass")
-	}
-	ok, _, err = s.AcquireLease(ctx, "lease", 1, time.Second)
-	if err != nil || ok {
-		t.Fatalf("lease should fail")
-	}
-	if err := s.ReleaseLease(ctx, "lease"); err != nil {
-		t.Fatalf("release failed")
-	}
+	require.NoError(t, err, "lease should pass")
+	assert.True(t, ok, "lease should be acquired")
+	assert.Equal(t, int64(1), cur, "lease current value")
 
-	if asInt64(int64(2)) != 2 || asInt64(int(3)) != 3 || asInt64("4") != 4 || asInt64(struct{}{}) != 0 {
-		t.Fatalf("asInt64 conversion failed")
-	}
+	ok, _, err = s.AcquireLease(ctx, "lease", 1, time.Second)
+	require.NoError(t, err, "lease should fail cleanly")
+	assert.False(t, ok, "lease should not be acquired twice")
+
+	require.NoError(t, s.ReleaseLease(ctx, "lease"), "release failed")
+
+	assert.Equal(t, int64(2), asInt64(int64(2)), "asInt64 int64")
+	assert.Equal(t, int64(3), asInt64(int(3)), "asInt64 int")
+	assert.Equal(t, int64(4), asInt64("4"), "asInt64 string")
+	assert.Equal(t, int64(0), asInt64(struct{}{}), "asInt64 unknown type")
 }
 
 func TestRedisStorePingAndClose(t *testing.T) {
 	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis failed: %v", err)
-	}
+	require.NoError(t, err, "miniredis failed")
 	defer mr.Close()
 
 	s := New(mr.Addr(), "", 0)
-	if err := s.Ping(context.Background()); err != nil {
-		t.Fatalf("ping failed: %v", err)
-	}
+	require.NoError(t, s.Ping(context.Background()), "ping failed")
+
 	stats := s.PoolStats()
-	if stats == nil {
-		t.Fatalf("expected non-nil pool stats")
-	}
-	if err := s.Close(); err != nil {
-		t.Fatalf("close failed: %v", err)
-	}
+	assert.NotNil(t, stats, "expected non-nil pool stats")
+
+	require.NoError(t, s.Close(), "close failed")
 }
 
 func TestRedisStoreCheckAndAddTimestamps(t *testing.T) {
 	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis failed: %v", err)
-	}
+	require.NoError(t, err, "miniredis failed")
 	defer mr.Close()
 
 	s := New(mr.Addr(), "", 0)
@@ -114,28 +98,26 @@ func TestRedisStoreCheckAndAddTimestamps(t *testing.T) {
 
 	// First add — should succeed.
 	count, allowed, err := s.CheckAndAddTimestamps(ctx, "ts-lua", now.Add(-time.Minute), 2, 1, now, time.Minute)
-	if err != nil || !allowed || count != 0 {
-		t.Fatalf("first add should succeed: count=%d allowed=%v err=%v", count, allowed, err)
-	}
+	require.NoError(t, err, "first add should not error")
+	assert.True(t, allowed, "first add should be allowed")
+	assert.Equal(t, int64(0), count, "first add count")
 
 	// Second add — should succeed.
 	count, allowed, err = s.CheckAndAddTimestamps(ctx, "ts-lua", now.Add(-time.Minute), 2, 1, now, time.Minute)
-	if err != nil || !allowed || count != 1 {
-		t.Fatalf("second add should succeed: count=%d allowed=%v err=%v", count, allowed, err)
-	}
+	require.NoError(t, err, "second add should not error")
+	assert.True(t, allowed, "second add should be allowed")
+	assert.Equal(t, int64(1), count, "second add count")
 
 	// Third add — should be denied.
 	count, allowed, err = s.CheckAndAddTimestamps(ctx, "ts-lua", now.Add(-time.Minute), 2, 1, now, time.Minute)
-	if err != nil || allowed || count != 2 {
-		t.Fatalf("third add should deny: count=%d allowed=%v err=%v", count, allowed, err)
-	}
+	require.NoError(t, err, "third add should not error")
+	assert.False(t, allowed, "third add should be denied")
+	assert.Equal(t, int64(2), count, "third add count")
 }
 
 func TestRedisStoreNewWithOptions(t *testing.T) {
 	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis failed: %v", err)
-	}
+	require.NoError(t, err, "miniredis failed")
 	defer mr.Close()
 
 	s := NewWithOptions(Options{
@@ -147,8 +129,6 @@ func TestRedisStoreNewWithOptions(t *testing.T) {
 		WriteTimeout: time.Second,
 		MaxRetries:   3,
 	})
-	if err := s.Ping(context.Background()); err != nil {
-		t.Fatalf("ping failed with full options: %v", err)
-	}
+	require.NoError(t, s.Ping(context.Background()), "ping failed with full options")
 	_ = s.Close()
 }

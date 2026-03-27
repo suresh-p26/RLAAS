@@ -2,6 +2,7 @@ package algorithm
 
 import (
 	"context"
+
 	"github.com/rlaas-io/rlaas/pkg/model"
 )
 

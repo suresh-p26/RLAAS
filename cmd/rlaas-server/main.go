@@ -17,6 +17,8 @@ import (
 	"syscall"
 	"time"
 
+	"google.golang.org/grpc"
+
 	rlaasv1 "github.com/rlaas-io/rlaas/api/proto"
 	grpcadapter "github.com/rlaas-io/rlaas/internal/adapter/grpc"
 	httpadapter "github.com/rlaas-io/rlaas/internal/adapter/http"
@@ -27,9 +29,8 @@ import (
 	"github.com/rlaas-io/rlaas/internal/server"
 	"github.com/rlaas-io/rlaas/internal/store/counter/memory"
 	filestore "github.com/rlaas-io/rlaas/internal/store/policy/file"
+	"github.com/rlaas-io/rlaas/internal/version"
 	"github.com/rlaas-io/rlaas/pkg/rlaas"
-
-	"google.golang.org/grpc"
 )
 
 // main starts the RLAAS server with production-safe defaults.  Config is
@@ -138,6 +139,7 @@ func runAll(cfg config.Config, listenFn func(config.Config, *server.HTTPServer) 
 	mux.Handle("/rlaas/v1/policies/", policiesHandler)
 	mux.Handle("/rlaas/v1/analytics/summary", analytics.SummaryHandler(analyticsRecorder))
 	mux.Handle("/metrics", metrics.PrometheusHandler(metricsCollector))
+	mux.Handle("/version", versionHandler())
 
 	mw := httpadapter.NewMiddleware(client)
 	mux.Handle("/demo", mw.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -166,6 +168,7 @@ func runAll(cfg config.Config, listenFn func(config.Config, *server.HTTPServer) 
 		h = server.AuthMiddleware(authCfg, h)
 		h = SecurityHeadersMiddleware(h)
 		h = RequestIDMiddleware(h)
+		h = server.TraceContextMiddleware(h) // outermost: W3C traceparent propagation
 		return h
 	})
 
@@ -248,6 +251,19 @@ func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 // Returns SERVING (1) unconditionally.
 func grpcHealthCheck(_ interface{}, _ context.Context, _ func(interface{}) error, _ grpc.UnaryServerInterceptor) (interface{}, error) {
 	return &struct{ Status int32 }{Status: 1}, nil
+}
+
+// versionHandler returns build-time metadata as JSON.  The response is safe
+// to expose publicly — it contains no secrets, only version/commit/build time.
+func versionHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"version":    version.Version,
+			"commit":     version.Commit,
+			"build_time": version.BuildTime,
+		})
+	})
 }
 
 // startInvalidationDispatcher spawns a bounded worker pool that pushes

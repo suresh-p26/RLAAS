@@ -2,10 +2,11 @@ package kafka
 
 import (
 	"context"
-	"github.com/rlaas-io/rlaas/pkg/model"
-	"github.com/rlaas-io/rlaas/pkg/provider"
 	"testing"
 	"time"
+
+	"github.com/rlaas-io/rlaas/pkg/model"
+	"github.com/rlaas-io/rlaas/pkg/provider"
 )
 
 type stubEval struct {

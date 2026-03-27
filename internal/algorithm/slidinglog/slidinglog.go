@@ -9,16 +9,14 @@ import (
 	"github.com/rlaas-io/rlaas/pkg/model"
 )
 
-// atomicTimestampStore is an optional interface that provides atomic
-// check-and-add for timestamp-based rate limiting. Store implementations
-// that support it (e.g., memory, Redis with Lua) avoid TOCTOU races between
-// counting existing entries and adding new ones.
+// atomicTimestampStore is satisfied by stores (memory, Redis) that provide
+// an atomic check-and-add, eliminating the TOCTOU race in the fallback path.
 type atomicTimestampStore interface {
 	CheckAndAddTimestamps(ctx context.Context, key string, cutoff time.Time, limit, cost int64, ts time.Time, ttl time.Duration) (count int64, allowed bool, err error)
 }
 
-// Evaluator enforces exact rolling limits using timestamp logs.
-// Each request adds Cost entries to the log; denied requests do not pollute it.
+// Evaluator enforces exact rolling limits using a timestamp log.
+// Denied requests are not recorded, preventing log pollution.
 type Evaluator struct {
 	Counter store.CounterStore
 	Now     func() time.Time
@@ -30,9 +28,7 @@ func New(counter store.CounterStore) *Evaluator {
 }
 
 // Evaluate checks whether adding the current request would exceed the limit
-// within the rolling window. Only records timestamps for allowed requests.
-// When the underlying store supports atomic check-and-add, uses it to prevent
-// TOCTOU race conditions under concurrent access.
+// within the rolling window, recording timestamps only for allowed requests.
 func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model.RequestContext, key string) (model.Decision, error) {
 	now := time.Now()
 	if e.Now != nil {
@@ -50,7 +46,6 @@ func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model
 	cost := common.Cost(req, policy.Algorithm)
 	cutoff := now.Add(-window)
 
-	// Prefer atomic path when the store supports it — avoids TOCTOU races.
 	if ats, ok := e.Counter.(atomicTimestampStore); ok {
 		count, allowed, err := ats.CheckAndAddTimestamps(ctx, logKey, cutoff, limit, cost, now, window)
 		if err != nil {
@@ -69,7 +64,7 @@ func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model
 		}, nil
 	}
 
-	// Fallback: non-atomic path for stores without atomic support.
+	// Fallback for stores without atomic support — has a narrow TOCTOU window.
 	if err := e.Counter.TrimBefore(ctx, logKey, cutoff); err != nil {
 		return model.Decision{}, err
 	}
@@ -99,7 +94,7 @@ func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model
 	}, nil
 }
 
-// computeRetryAfter estimates when enough entries expire to allow the next request.
+// computeRetryAfter estimates when enough log entries expire to allow the next request.
 func computeRetryAfter(window time.Duration, count, cost, limit int64) time.Duration {
 	if count <= 0 {
 		return window

@@ -176,12 +176,16 @@ func TestLeakyBucket_ShadowMode(t *testing.T) {
 
 func TestLeakyBucket_ErrorPaths(t *testing.T) {
 	tests := []struct {
-		name  string
-		store store.CounterStore
+		name        string
+		store       store.CounterStore
+		wantErr     bool
+		wantAllowed bool
 	}{
-		{"set error", &lbSetErrStore{}},
-		{"get error", &lbGetErrStore{}},
-		{"cas error", &lbCASErrStore{}},
+		// Set is best-effort: CAS already committed the level change, so the
+		// request is admitted even when the timestamp Set fails.
+		{"set error", &lbSetErrStore{}, false, true},
+		{"get error", &lbGetErrStore{}, true, false},
+		{"cas error", &lbCASErrStore{}, true, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -189,8 +193,13 @@ func TestLeakyBucket_ErrorPaths(t *testing.T) {
 			now := time.Unix(1000, 0)
 			e.Now = func() time.Time { return now }
 			p := lbPolicy(10, "1s", 1.0)
-			_, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-			require.Error(t, err)
+			d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantAllowed, d.Allowed)
+			}
 		})
 	}
 }

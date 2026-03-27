@@ -201,7 +201,7 @@ func proxyCheck(w http.ResponseWriter, r *http.Request, cfg agentConfig, client 
 		http.Error(w, "upstream unavailable", http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	for k, values := range resp.Header {
 		for _, v := range values {
 			w.Header().Add(k, v)
@@ -251,7 +251,7 @@ func fetchPolicySnapshot(ctx context.Context, cfg agentConfig, client *http.Clie
 		state.markError(err.Error())
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, resp.Body)
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		state.markSuccess(time.Now().UTC())

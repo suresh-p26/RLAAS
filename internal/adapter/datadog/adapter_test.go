@@ -2,9 +2,10 @@ package datadog
 
 import (
 	"context"
+	"testing"
+
 	"github.com/rlaas-io/rlaas/pkg/model"
 	"github.com/rlaas-io/rlaas/pkg/provider"
-	"testing"
 )
 
 type stubEval struct {

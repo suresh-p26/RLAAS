@@ -3,12 +3,13 @@ package grpcadapter
 import (
 	"context"
 	"errors"
-	"github.com/rlaas-io/rlaas/pkg/model"
 	"testing"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/rlaas-io/rlaas/pkg/model"
 )
 
 type grpcEvalStub struct {

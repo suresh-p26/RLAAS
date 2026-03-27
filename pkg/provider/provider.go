@@ -19,8 +19,9 @@ package provider
 
 import (
 	"context"
-	"github.com/rlaas-io/rlaas/pkg/model"
 	"sync"
+
+	"github.com/rlaas-io/rlaas/pkg/model"
 )
 
 // SignalKind classifies the type of telemetry signal being rate-limited.

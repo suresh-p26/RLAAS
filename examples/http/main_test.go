@@ -2,11 +2,26 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rlaas-io/rlaas/pkg/model"
+	"github.com/rlaas-io/rlaas/pkg/rlaas"
 )
+
+type stubErrorEvaluator struct{}
+
+func (s *stubErrorEvaluator) Evaluate(_ context.Context, _ model.RequestContext) (model.Decision, error) {
+	return model.Decision{}, errors.New("eval failed")
+}
+
+func (s *stubErrorEvaluator) StartConcurrencyLease(_ context.Context, _ model.RequestContext) (model.Decision, func() error, error) {
+	return model.Decision{}, nil, nil
+}
 
 func TestRunExample(t *testing.T) {
 	buf := &bytes.Buffer{}
@@ -42,4 +57,25 @@ func TestRunExampleErrorPath(t *testing.T) {
 	if err := run(&bytes.Buffer{}); err != nil {
 		t.Fatalf("expected fail-open run behavior, got error: %v", err)
 	}
+}
+
+func TestRun_EvaluateError(t *testing.T) {
+	orig := newClient
+	newClient = func() rlaas.Evaluator { return &stubErrorEvaluator{} }
+	t.Cleanup(func() { newClient = orig })
+
+	err := run(&bytes.Buffer{})
+	if err == nil {
+		t.Fatal("expected error from run when evaluator fails")
+	}
+}
+
+func TestMain_PanicsOnEvaluateError(t *testing.T) {
+	orig := newClient
+	newClient = func() rlaas.Evaluator { return &stubErrorEvaluator{} }
+	defer func() {
+		recover()
+		newClient = orig
+	}()
+	main()
 }

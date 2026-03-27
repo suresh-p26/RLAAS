@@ -3,9 +3,10 @@ package matcher
 import (
 	"errors"
 	"fmt"
-	"github.com/rlaas-io/rlaas/pkg/model"
 	"sort"
 	"strings"
+
+	"github.com/rlaas-io/rlaas/pkg/model"
 )
 
 // Matcher finds policies that apply to a request and picks the final winner.

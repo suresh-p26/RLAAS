@@ -304,7 +304,7 @@ func makeTestJWT(claims map[string]interface{}, secret []byte) string {
 	claimsJSON, _ := json.Marshal(claims)
 	payload := base64.RawURLEncoding.EncodeToString(claimsJSON)
 	mac := hmac.New(sha256.New, secret)
-	mac.Write([]byte(fmt.Sprintf("%s.%s", header, payload)))
+	fmt.Fprintf(mac, "%s.%s", header, payload)
 	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 	return fmt.Sprintf("%s.%s.%s", header, payload, sig)
 }

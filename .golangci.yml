@@ -1,0 +1,42 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - ineffassign
+    - misspell
+    - unconvert
+    - unparam
+  settings:
+    errcheck:
+      check-blank: false
+      check-type-assertions: false
+    govet:
+      enable:
+        - shadow
+        - printf
+        - structtag
+  exclusions:
+    rules:
+      # Test files: errcheck and unparam are noisy and not actionable in tests
+      - path: "_test\\.go"
+        linters:
+          - errcheck
+          - unparam
+      # Test files: if err := ...; err != nil { } is idiomatic Go, suppress shadow
+      - path: "_test\\.go"
+        linters:
+          - govet
+        text: "shadow"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/rlaas-io/rlaas

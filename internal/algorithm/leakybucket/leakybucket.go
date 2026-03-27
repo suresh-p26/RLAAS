@@ -19,10 +19,7 @@ func maxRetries(cfg model.AlgorithmConfig) int {
 	return defaultMaxCASRetries
 }
 
-// Evaluator smooths bursts by draining accumulated load over time.
-// It tracks the current water level and the last-evaluated timestamp so that
-// leak is computed proportionally to elapsed real time.
-// Uses CompareAndSwap retry loop for safe concurrent access.
+// Evaluator smooths bursts by draining accumulated load at a constant leak rate.
 type Evaluator struct {
 	Counter store.CounterStore
 	Now     func() time.Time
@@ -33,9 +30,7 @@ func New(counter store.CounterStore) *Evaluator {
 	return &Evaluator{Counter: counter}
 }
 
-// Evaluate applies time-proportional leak, adds request cost, and checks
-// whether the bucket overflows. Uses a CAS retry loop on the level key to
-// prevent concurrent over-admission.
+// Evaluate applies time-proportional leak, adds request cost, and checks overflow.
 func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model.RequestContext, key string) (model.Decision, error) {
 	now := time.Now()
 	if e.Now != nil {
@@ -75,49 +70,43 @@ func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model
 		}
 
 		curLevel := float64(oldLevelMilli) / 1000.0
-
-		// On first request, initialize empty bucket.
 		if lastNanos == 0 {
 			lastNanos = now.UnixNano()
 		}
 
-		// Compute time-proportional leak.
 		elapsed := float64(now.UnixNano()-lastNanos) / float64(time.Second)
 		if elapsed < 0 {
 			elapsed = 0 // guard against clock skew
 		}
-		leaked := elapsed * leakRate
-		curLevel = math.Max(0, curLevel-leaked)
-
-		// Add request cost.
+		curLevel = math.Max(0, curLevel-(elapsed*leakRate))
 		curLevel += float64(cost)
 
-		// Check overflow.
 		if curLevel > float64(limit) {
 			overflow := curLevel - float64(limit)
 			retry := time.Duration((overflow / leakRate) * float64(time.Second))
 			return common.OverLimitDecision(policy, retry, 0, "leaky_bucket_overflow"), nil
 		}
 
-		// CAS: only commit if level hasn't changed since we read it.
 		newLevelMilli := int64(math.Round(curLevel * 1000))
 		swapped, err := e.Counter.CompareAndSwap(ctx, levelKey, oldLevelMilli, newLevelMilli, ttl)
 		if err != nil {
 			return model.Decision{}, err
 		}
 		if !swapped {
-			continue // Another goroutine modified level; retry.
+			continue
 		}
 
-		// Update timestamp.
-		if err := e.Counter.Set(ctx, tsKey, now.UnixNano(), ttl); err != nil {
-			return model.Decision{}, err
+		// Timestamp update is best-effort: the CAS already committed the level change.
+		// A failed Set leaves a stale refill base (slightly generous next leak).
+		for i := 0; i < 3; i++ {
+			if e.Counter.Set(ctx, tsKey, now.UnixNano(), ttl) == nil {
+				break
+			}
 		}
 
 		remaining := int64(float64(limit) - curLevel)
 		return model.Decision{Allowed: true, Action: model.ActionAllow, Reason: "within_leaky_bucket", Remaining: remaining}, nil
 	}
 
-	// Exhausted retries — treat as temporary contention, deny with short retry.
 	return common.OverLimitDecision(policy, 10*time.Millisecond, 0, "leaky_bucket_contention"), nil
 }

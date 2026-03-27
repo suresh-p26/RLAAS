@@ -9,12 +9,10 @@ import (
 	"github.com/rlaas-io/rlaas/pkg/model"
 )
 
-// DefaultLeaseTTL is the safety-net expiry if the caller never releases.
+// DefaultLeaseTTL is the safety-net expiry for leases the caller never releases.
 const DefaultLeaseTTL = 2 * time.Minute
 
 // Evaluator limits the number of concurrent in-flight operations.
-// It exposes a Release method so callers can free slots when work completes,
-// rather than relying solely on TTL expiry.
 type Evaluator struct {
 	Counter store.CounterStore
 }
@@ -24,9 +22,8 @@ func New(counter store.CounterStore) *Evaluator {
 	return &Evaluator{Counter: counter}
 }
 
-// Evaluate tries to acquire one lease and denies when the limit is reached.
-// The lease key is returned in the decision's Reason field so the caller
-// can pass it to Release.
+// Evaluate tries to acquire one lease and denies when the concurrency limit is reached.
+// The lease key is embedded in the decision's Reason so the caller can pass it to Release.
 func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, _ model.RequestContext, key string) (model.Decision, error) {
 	limit := policy.Algorithm.MaxConcurrency
 	if limit <= 0 {
@@ -57,8 +54,7 @@ func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, _ model.R
 	return common.OverLimitDecision(policy, 100*time.Millisecond, 0, "concurrency_limit_exceeded"), nil
 }
 
-// Release frees a concurrency slot. Should be called when the in-flight
-// operation completes.
+// Release frees a concurrency slot when the in-flight operation completes.
 func (e *Evaluator) Release(ctx context.Context, key string) error {
 	return e.Counter.ReleaseLease(ctx, key+":concurrency")
 }

@@ -73,7 +73,8 @@ func (e *DefaultEngine) StartConcurrencyLease(ctx context.Context, req model.Req
 		return d, func() error { return nil }, nil
 	}
 	if policy.Algorithm.Type != model.AlgoConcurrency {
-		decision, err := e.Evaluate(ctx, req)
+		var decision model.Decision
+		decision, err = e.Evaluate(ctx, req)
 		return decision, func() error { return nil }, err
 	}
 	limit := policy.Algorithm.MaxConcurrency

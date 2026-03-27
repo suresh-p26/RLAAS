@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/rlaas-io/rlaas/internal/config"
 	"github.com/rlaas-io/rlaas/internal/server"
-	"google.golang.org/grpc"
 )
 
 func TestRunBuildsServer(t *testing.T) {
@@ -438,7 +439,7 @@ func TestGenerateRequestID_IsSixteenBytes(t *testing.T) {
 func TestGenerateRequestID_IsHex(t *testing.T) {
 	id := generateRequestID()
 	for _, c := range id {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			t.Fatalf("expected hex characters only, got invalid char: %c", c)
 		}
 	}

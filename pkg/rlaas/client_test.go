@@ -2,11 +2,12 @@ package rlaas
 
 import (
 	"context"
+	"path/filepath"
+	"testing"
+
 	"github.com/rlaas-io/rlaas/internal/store/counter/memory"
 	filestore "github.com/rlaas-io/rlaas/internal/store/policy/file"
 	"github.com/rlaas-io/rlaas/pkg/model"
-	"path/filepath"
-	"testing"
 )
 
 func TestClientEvaluateAndLease(t *testing.T) {

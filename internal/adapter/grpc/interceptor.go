@@ -2,11 +2,12 @@ package grpcadapter
 
 import (
 	"context"
-	"github.com/rlaas-io/rlaas/pkg/model"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/rlaas-io/rlaas/pkg/model"
 )
 
 // Evaluator is the interface required by the gRPC interceptor.

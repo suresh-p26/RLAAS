@@ -66,9 +66,7 @@ func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model
 			remaining := limit - (curCount + cost)
 			return model.Decision{Allowed: true, Action: model.ActionAllow, Reason: "within_fixed_window", Remaining: remaining, ResetAt: windowEnd}, nil
 		}
-		// CAS failed — another goroutine incremented; retry.
 	}
 
-	// Exhausted retries — treat as temporary contention.
 	return common.OverLimitDecision(policy, windowEnd.Sub(now), 0, "fixed_window_contention"), nil
 }

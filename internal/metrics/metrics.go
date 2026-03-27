@@ -164,9 +164,6 @@ func NewHistogram(bounds []float64) *Histogram {
 // Observe records one value.
 func (h *Histogram) Observe(v float64) {
 	idx := sort.SearchFloat64s(h.bounds, v)
-	if idx < len(h.bounds) && h.bounds[idx] == v {
-		// exact match goes into this bucket
-	}
 	h.counts[idx].Add(1)
 	h.sum.Add(int64(v))
 	h.total.Add(1)

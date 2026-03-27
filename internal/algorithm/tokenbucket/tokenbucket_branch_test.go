@@ -37,10 +37,15 @@ func (tbCASAlwaysFalseStore) CompareAndSwap(_ context.Context, _ string, _, _ in
 }
 
 func TestTokenBucket_SetErrorAfterCAS(t *testing.T) {
+	// The timestamp Set is best-effort: the CAS already committed the token
+	// deduction, so the request must be admitted even when Set fails.
+	// A failed Set means the next request's refill base is slightly stale
+	// (over-generous), which is preferable to erroring on a completed op.
 	e := New(&tbSetErrStore{})
 	p := tbPolicy(1, 1, 1)
-	_, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	require.Error(t, err)
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "request must be admitted despite timestamp Set failure")
 }
 
 func TestTokenBucket_ContentionExhaustsRetries(t *testing.T) {

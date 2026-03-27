@@ -52,6 +52,19 @@ spec:
                 name: rlaas-config
             - secretRef:
                 name: rlaas-secrets
+          env:
+            # Tell the Go runtime how many OS threads to use — without this
+            # Go reads host /proc/cpuinfo instead of the cgroup CPU limit,
+            # causing over-scheduling inside the container.
+            - name: GOMAXPROCS
+              valueFrom:
+                resourceFieldRef:
+                  resource: limits.cpu
+                  divisor: "1"
+            # Cap Go's heap target at ~90% of the container memory limit so
+            # the GC triggers before the OOM killer does (requires Go 1.19+).
+            - name: GOMEMLIMIT
+              value: "460MiB"   # 90% of 512Mi — adjust if limits.memory changes
           resources:
             requests:
               cpu: 100m

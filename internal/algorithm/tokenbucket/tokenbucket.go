@@ -12,8 +12,7 @@ import (
 
 const defaultMaxCASRetries = 5
 
-// Evaluator applies token bucket rate limiting with refill over time.
-// Uses CompareAndSwap for safe concurrent access to token state.
+// Evaluator applies token bucket rate limiting with continuous refill over time.
 type Evaluator struct {
 	Counter store.CounterStore
 	Now     func() time.Time
@@ -32,7 +31,6 @@ func New(counter store.CounterStore) *Evaluator {
 }
 
 // Evaluate refills tokens based on elapsed time and consumes request cost.
-// It uses an optimistic CAS loop to prevent double-spending under concurrency.
 func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model.RequestContext, key string) (model.Decision, error) {
 	now := time.Now()
 	if e.Now != nil {
@@ -74,12 +72,10 @@ func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model
 
 		curTokens := float64(oldTokenMilli) / 1000.0
 		if lastNanos == 0 {
-			// First request: initialize to full capacity.
 			curTokens = float64(capacity)
 			lastNanos = now.UnixNano()
 		}
 
-		// Refill based on elapsed time.
 		elapsed := float64(now.UnixNano()-lastNanos) / float64(time.Second)
 		if elapsed < 0 {
 			elapsed = 0 // guard against clock skew
@@ -95,19 +91,20 @@ func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model
 		newTokens := curTokens - cost
 		newTokenMilli := int64(math.Round(newTokens * 1000))
 
-		// CAS: only commit if tokens haven't changed since we read them.
 		swapped, err := e.Counter.CompareAndSwap(ctx, tokensKey, oldTokenMilli, newTokenMilli, ttl)
 		if err != nil {
 			return model.Decision{}, err
 		}
 		if !swapped {
-			// Another goroutine modified tokens; retry.
 			continue
 		}
 
-		// Update timestamp.
-		if err := e.Counter.Set(ctx, tsKey, now.UnixNano(), ttl); err != nil {
-			return model.Decision{}, err
+		// Timestamp update is best-effort: the CAS already committed the deduction.
+		// A failed Set leaves a stale refill base (slightly generous next refill).
+		for i := 0; i < 3; i++ {
+			if e.Counter.Set(ctx, tsKey, now.UnixNano(), ttl) == nil {
+				break
+			}
 		}
 
 		return model.Decision{
@@ -118,6 +115,5 @@ func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model
 		}, nil
 	}
 
-	// Exhausted retries — treat as temporary contention, deny with short retry.
 	return common.OverLimitDecision(policy, 10*time.Millisecond, 0, "token_bucket_contention"), nil
 }

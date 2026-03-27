@@ -19,7 +19,7 @@ func maxRetries(cfg model.AlgorithmConfig) int {
 	return defaultMaxCASRetries
 }
 
-// Evaluator enforces long window usage budgets such as day or month quotas.
+// Evaluator enforces long-window usage budgets (day, week, month quotas).
 type Evaluator struct {
 	Counter store.CounterStore
 	Now     func() time.Time
@@ -30,9 +30,7 @@ func New(counter store.CounterStore) *Evaluator {
 	return &Evaluator{Counter: counter}
 }
 
-// Evaluate increments current period usage and checks remaining budget.
-// It uses a CAS retry loop so only allowed requests are committed, avoiding
-// over-admission under concurrent traffic.
+// Evaluate increments current period usage via CAS and checks remaining budget.
 func (e *Evaluator) Evaluate(ctx context.Context, policy model.Policy, req model.RequestContext, key string) (model.Decision, error) {
 	now := time.Now()
 	if e.Now != nil {
