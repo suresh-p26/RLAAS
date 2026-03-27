@@ -3,8 +3,9 @@ package provider
 import (
 	"context"
 	"errors"
-	"github.com/rlaas-io/rlaas/pkg/model"
 	"testing"
+
+	"github.com/rlaas-io/rlaas/pkg/model"
 )
 
 type stubEvaluator struct {
