@@ -26,6 +26,11 @@ linters:
         linters:
           - errcheck
           - unparam
+      # Test files: if err := ...; err != nil { } is idiomatic Go, suppress shadow
+      - path: "_test\\.go"
+        linters:
+          - govet
+        text: "shadow"
 
 formatters:
   enable:
