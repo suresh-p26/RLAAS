@@ -1,0 +1,33 @@
+{
+  "id": "rlaas-env-local",
+  "name": "RLAAS — Local Development",
+  "values": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "sidecar_url",
+      "value": "http://localhost:18080",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "policy_id",
+      "value": "payments-limit",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "secret",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "environment",
+  "_postman_exported_at": "2026-03-27T00:00:00.000Z",
+  "_postman_exported_using": "rlaas.docs"
+}
