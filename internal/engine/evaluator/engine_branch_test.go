@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/rlaas-io/rlaas/internal/algorithm"
 	"github.com/rlaas-io/rlaas/internal/engine/matcher"
 	"github.com/rlaas-io/rlaas/internal/key"
@@ -64,21 +67,15 @@ func TestEvaluateReturnsAllowOnMatchOrSelectOrKeyErrors(t *testing.T) {
 
 	e1 := &DefaultEngine{PolicyStore: ps, CounterStore: leaseStore{}, Matcher: matcherErrStub{matchErr: errors.New("match")}, KeyBuilder: key.New("rlaas"), PolicyCache: cache.NewMemoryPolicyCache(time.Second), Algorithms: map[model.AlgorithmType]algorithm.Evaluator{model.AlgoFixedWindow: passthroughAlgo{}}}
 	d, _ := e1.Evaluate(context.Background(), model.RequestContext{})
-	if !d.Allowed {
-		t.Fatalf("expected allow on match error")
-	}
+	assert.True(t, d.Allowed, "expected allow on match error")
 
 	e2 := &DefaultEngine{PolicyStore: ps, CounterStore: leaseStore{}, Matcher: matcherErrStub{selectErr: errors.New("select")}, KeyBuilder: key.New("rlaas"), PolicyCache: cache.NewMemoryPolicyCache(time.Second), Algorithms: map[model.AlgorithmType]algorithm.Evaluator{model.AlgoFixedWindow: passthroughAlgo{}}}
 	d, _ = e2.Evaluate(context.Background(), model.RequestContext{})
-	if !d.Allowed {
-		t.Fatalf("expected allow on select error")
-	}
+	assert.True(t, d.Allowed, "expected allow on select error")
 
 	e3 := &DefaultEngine{PolicyStore: ps, CounterStore: leaseStore{}, Matcher: matcherErrStub{}, KeyBuilder: keyErrBuilder{}, PolicyCache: cache.NewMemoryPolicyCache(time.Second), Algorithms: map[model.AlgorithmType]algorithm.Evaluator{model.AlgoFixedWindow: passthroughAlgo{}}}
 	d, _ = e3.Evaluate(context.Background(), model.RequestContext{})
-	if !d.Allowed {
-		t.Fatalf("expected allow on key build error")
-	}
+	assert.True(t, d.Allowed, "expected allow on key build error")
 }
 
 func TestStartConcurrencyLeaseShadowVariantsAndPickPolicyFilters(t *testing.T) {
@@ -93,13 +90,12 @@ func TestStartConcurrencyLeaseShadowVariantsAndPickPolicyFilters(t *testing.T) {
 
 	e := &DefaultEngine{PolicyStore: policyStoreStub{policies: policies}, CounterStore: leaseStore{ok: false, cur: 1}, Matcher: matcher.New(), KeyBuilder: key.New("rlaas"), PolicyCache: cache.NewMemoryPolicyCache(time.Second), Algorithms: map[model.AlgorithmType]algorithm.Evaluator{model.AlgoConcurrency: passthroughAlgo{}}, Now: func() time.Time { return now }}
 	d, _, _ := e.StartConcurrencyLease(context.Background(), model.RequestContext{RequestID: "r1"})
-	if !d.Allowed || d.Action != model.ActionShadowOnly {
-		t.Fatalf("expected shadow deny path")
-	}
+	assert.True(t, d.Allowed, "expected shadow deny path to allow")
+	assert.Equal(t, model.ActionShadowOnly, d.Action)
 
 	e.CounterStore = leaseStore{ok: true, cur: 1}
 	d, release, _ := e.StartConcurrencyLease(context.Background(), model.RequestContext{RequestID: "r2"})
-	if !d.Allowed || d.Action != model.ActionShadowOnly || release == nil {
-		t.Fatalf("expected shadow allow path")
-	}
+	assert.True(t, d.Allowed, "expected shadow allow path")
+	assert.Equal(t, model.ActionShadowOnly, d.Action)
+	require.NotNil(t, release)
 }

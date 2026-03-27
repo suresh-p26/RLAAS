@@ -6,28 +6,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
 
 func TestNewGRPCServer(t *testing.T) {
 	s := NewGRPCServer(":9090", grpc.NewServer())
-	if s == nil || s.Server == nil || s.Addr != ":9090" {
-		t.Fatalf("expected grpc server initialized")
-	}
+	require.NotNil(t, s)
+	require.NotNil(t, s.Server)
+	assert.Equal(t, ":9090", s.Addr)
 }
 
 func TestGRPCServerListenAndServeInvalidAddress(t *testing.T) {
 	s := NewGRPCServer(":-1", grpc.NewServer())
-	if err := s.ListenAndServe(); err == nil {
-		t.Fatalf("expected listen error")
-	}
+	err := s.ListenAndServe()
+	require.Error(t, err, "expected listen error")
 }
 
 func TestGRPCServerListenAndServeAndStop(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen failed: %v", err)
-	}
+	require.NoError(t, err, "listen failed")
 	addr := ln.Addr().String()
 	_ = ln.Close()
 
@@ -43,7 +42,7 @@ func TestGRPCServerListenAndServeAndStop(t *testing.T) {
 	grpcSrv.Stop()
 
 	err = <-errCh
-	if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-		t.Fatalf("unexpected serve error: %v", err)
+	if err != nil {
+		assert.True(t, strings.Contains(err.Error(), "use of closed network connection"), "unexpected serve error: %v", err)
 	}
 }

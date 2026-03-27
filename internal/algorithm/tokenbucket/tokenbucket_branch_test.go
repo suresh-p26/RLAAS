@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/rlaas-io/rlaas/internal/store"
 	"github.com/rlaas-io/rlaas/pkg/model"
 )
@@ -36,9 +39,8 @@ func (tbCASAlwaysFalseStore) CompareAndSwap(_ context.Context, _ string, _, _ in
 func TestTokenBucket_SetErrorAfterCAS(t *testing.T) {
 	e := New(&tbSetErrStore{})
 	p := tbPolicy(1, 1, 1)
-	if _, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k"); err == nil {
-		t.Fatalf("expected set error after successful CAS")
-	}
+	_, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.Error(t, err)
 }
 
 func TestTokenBucket_ContentionExhaustsRetries(t *testing.T) {
@@ -47,13 +49,7 @@ func TestTokenBucket_ContentionExhaustsRetries(t *testing.T) {
 	e.Now = func() time.Time { return now }
 	p := tbPolicy(10, 10, 1)
 	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if err != nil {
-		t.Fatalf("contention should not return error: %v", err)
-	}
-	if d.Allowed {
-		t.Fatalf("contention exhaustion should deny: %+v", d)
-	}
-	if d.Reason != "token_bucket_contention" {
-		t.Fatalf("reason should be contention, got %s", d.Reason)
-	}
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "contention exhaustion should deny")
+	assert.Equal(t, "token_bucket_contention", d.Reason)
 }

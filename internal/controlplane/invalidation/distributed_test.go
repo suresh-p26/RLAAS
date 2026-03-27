@@ -5,32 +5,30 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alicebob/miniredis/v2"
 	goredis "github.com/redis/go-redis/v9"
 )
 
 func TestNewDistributedBroker(t *testing.T) {
 	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis: %v", err)
-	}
+	require.NoError(t, err, "miniredis")
 	defer mr.Close()
 
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
 	defer client.Close()
 
 	b := NewDistributedBroker(client, "rlaas:")
-	if b == nil || b.distributed == nil {
-		t.Fatal("expected distributed broker")
-	}
+	require.NotNil(t, b)
+	require.NotNil(t, b.distributed)
 	b.Stop()
 }
 
 func TestDistributedPublishSubscribe(t *testing.T) {
 	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis: %v", err)
-	}
+	require.NoError(t, err, "miniredis")
 	defer mr.Close()
 
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
@@ -48,15 +46,12 @@ func TestDistributedPublishSubscribe(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Publish via the distributed transport.
-	if err := b.Publish(context.Background(), "policy.changed", map[string]string{"policy_id": "p1"}); err != nil {
-		t.Fatalf("publish: %v", err)
-	}
+	err = b.Publish(context.Background(), "policy.changed", map[string]string{"policy_id": "p1"})
+	require.NoError(t, err, "publish")
 
 	select {
 	case evt := <-received:
-		if evt["policy_id"] != "p1" {
-			t.Fatalf("expected policy_id=p1, got %v", evt)
-		}
+		assert.Equal(t, "p1", evt["policy_id"], "expected policy_id=p1")
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for event")
 	}
@@ -64,9 +59,7 @@ func TestDistributedPublishSubscribe(t *testing.T) {
 
 func TestDistributedMultipleTopics(t *testing.T) {
 	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis: %v", err)
-	}
+	require.NoError(t, err, "miniredis")
 	defer mr.Close()
 
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
@@ -92,17 +85,13 @@ func TestDistributedMultipleTopics(t *testing.T) {
 
 	select {
 	case v := <-ch1:
-		if v != "v1" {
-			t.Fatalf("topic1: got %s", v)
-		}
+		assert.Equal(t, "v1", v, "topic1")
 	case <-time.After(2 * time.Second):
 		t.Fatal("topic1 timeout")
 	}
 	select {
 	case v := <-ch2:
-		if v != "v2" {
-			t.Fatalf("topic2: got %s", v)
-		}
+		assert.Equal(t, "v2", v, "topic2")
 	case <-time.After(2 * time.Second):
 		t.Fatal("topic2 timeout")
 	}
@@ -110,9 +99,7 @@ func TestDistributedMultipleTopics(t *testing.T) {
 
 func TestDistributedStop_Idempotent(t *testing.T) {
 	mr, err := miniredis.Run()
-	if err != nil {
-		t.Fatalf("miniredis: %v", err)
-	}
+	require.NoError(t, err, "miniredis")
 	defer mr.Close()
 
 	client := goredis.NewClient(&goredis.Options{Addr: mr.Addr()})
@@ -143,7 +130,6 @@ func TestStopLocal_NilDistributed(t *testing.T) {
 
 func TestChannelName(t *testing.T) {
 	d := &distributedTransport{prefix: "pfx:"}
-	if got := d.channelName("topic"); got != "pfx:topic" {
-		t.Fatalf("expected pfx:topic, got %s", got)
-	}
+	got := d.channelName("topic")
+	assert.Equal(t, "pfx:topic", got, "expected pfx:topic")
 }

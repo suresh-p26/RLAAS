@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/rlaas-io/rlaas/internal/store"
 	"github.com/rlaas-io/rlaas/pkg/model"
 )
@@ -25,14 +27,12 @@ func (swlTrimErrStore) TrimBefore(context.Context, string, time.Time) error {
 
 func TestSlidingLog_CountErrorPath(t *testing.T) {
 	e := New(swlCountErrStore{})
-	if _, err := e.Evaluate(context.Background(), model.Policy{Algorithm: model.AlgorithmConfig{Limit: 1, Window: "1m"}}, model.RequestContext{}, "k"); err == nil {
-		t.Fatalf("expected count error")
-	}
+	_, err := e.Evaluate(context.Background(), model.Policy{Algorithm: model.AlgorithmConfig{Limit: 1, Window: "1m"}}, model.RequestContext{}, "k")
+	require.Error(t, err)
 }
 
 func TestSlidingLog_TrimErrorPath(t *testing.T) {
 	e := New(swlTrimErrStore{})
-	if _, err := e.Evaluate(context.Background(), model.Policy{Algorithm: model.AlgorithmConfig{Limit: 1, Window: "1m"}}, model.RequestContext{}, "k"); err == nil {
-		t.Fatalf("expected trim error")
-	}
+	_, err := e.Evaluate(context.Background(), model.Policy{Algorithm: model.AlgorithmConfig{Limit: 1, Window: "1m"}}, model.RequestContext{}, "k")
+	require.Error(t, err)
 }

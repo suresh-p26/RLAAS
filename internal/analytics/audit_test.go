@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFileAuditLogger(t *testing.T) {
@@ -15,9 +18,7 @@ func TestFileAuditLogger(t *testing.T) {
 	path := filepath.Join(dir, "audit.jsonl")
 
 	logger, err := NewFileAuditLogger(path)
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
+	require.NoError(t, err, "open")
 
 	rec := DecisionRecord{
 		Timestamp: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -28,9 +29,7 @@ func TestFileAuditLogger(t *testing.T) {
 		Allowed:   true,
 		LatencyUs: 123,
 	}
-	if err := logger.Log(context.Background(), rec); err != nil {
-		t.Fatalf("log: %v", err)
-	}
+	require.NoError(t, logger.Log(context.Background(), rec), "log")
 
 	rec2 := DecisionRecord{
 		TenantID: "t2",
@@ -38,42 +37,25 @@ func TestFileAuditLogger(t *testing.T) {
 		Allowed:  false,
 		Reason:   "rate_limited",
 	}
-	if err := logger.Log(context.Background(), rec2); err != nil {
-		t.Fatalf("log2: %v", err)
-	}
-
-	if err := logger.Close(); err != nil {
-		t.Fatalf("close: %v", err)
-	}
+	require.NoError(t, logger.Log(context.Background(), rec2), "log2")
+	require.NoError(t, logger.Close(), "close")
 
 	// Read back and verify JSONL.
 	f, err := os.Open(path)
-	if err != nil {
-		t.Fatalf("reopen: %v", err)
-	}
+	require.NoError(t, err, "reopen")
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
 	var records []DecisionRecord
 	for scanner.Scan() {
 		var r DecisionRecord
-		if err := json.Unmarshal(scanner.Bytes(), &r); err != nil {
-			t.Fatalf("unmarshal: %v", err)
-		}
+		require.NoError(t, json.Unmarshal(scanner.Bytes(), &r), "unmarshal")
 		records = append(records, r)
 	}
-	if len(records) != 2 {
-		t.Fatalf("expected 2 records, got %d", len(records))
-	}
-	if records[0].RequestID != "req-1" {
-		t.Errorf("record 0 request_id: got %s, want req-1", records[0].RequestID)
-	}
-	if records[1].Allowed {
-		t.Errorf("record 1 should be denied")
-	}
-	if records[1].Timestamp.IsZero() {
-		t.Errorf("record 1 timestamp should be auto-filled")
-	}
+	require.Len(t, records, 2, "expected 2 records")
+	assert.Equal(t, "req-1", records[0].RequestID, "record 0 request_id")
+	assert.False(t, records[1].Allowed, "record 1 should be denied")
+	assert.False(t, records[1].Timestamp.IsZero(), "record 1 timestamp should be auto-filled")
 }
 
 func TestFileAuditLogger_Permissions(t *testing.T) {
@@ -81,15 +63,11 @@ func TestFileAuditLogger_Permissions(t *testing.T) {
 	path := filepath.Join(dir, "audit.jsonl")
 
 	logger, err := NewFileAuditLogger(path)
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
+	require.NoError(t, err, "open")
 	logger.Close()
 
 	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat: %v", err)
-	}
+	require.NoError(t, err, "stat")
 	// On Unix, 0600; on Windows permissions work differently.
 	perm := info.Mode().Perm()
 	_ = perm // existence check is sufficient
@@ -97,9 +75,7 @@ func TestFileAuditLogger_Permissions(t *testing.T) {
 
 func TestFileAuditLogger_BadPath(t *testing.T) {
 	_, err := NewFileAuditLogger("/nonexistent/path/audit.jsonl")
-	if err == nil {
-		t.Fatal("expected error for bad path")
-	}
+	require.Error(t, err, "expected error for bad path")
 }
 
 func TestAsyncAuditLogger(t *testing.T) {
@@ -107,29 +83,20 @@ func TestAsyncAuditLogger(t *testing.T) {
 	path := filepath.Join(dir, "audit.jsonl")
 
 	inner, err := NewFileAuditLogger(path)
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
+	require.NoError(t, err, "open")
 
 	async := NewAsyncAuditLogger(inner, 64)
 
-	// Write several records.
 	for i := 0; i < 10; i++ {
-		err := async.Log(context.Background(), DecisionRecord{
+		require.NoError(t, async.Log(context.Background(), DecisionRecord{
 			TenantID:  "t1",
 			Action:    "check",
 			Allowed:   true,
 			LatencyUs: int64(i),
-		})
-		if err != nil {
-			t.Fatalf("log %d: %v", i, err)
-		}
+		}), "log %d", i)
 	}
 
-	// Close drains the buffer.
-	if err := async.Close(); err != nil {
-		t.Fatalf("close: %v", err)
-	}
+	require.NoError(t, async.Close(), "close")
 
 	// Verify all records were persisted.
 	f, _ := os.Open(path)
@@ -139,15 +106,11 @@ func TestAsyncAuditLogger(t *testing.T) {
 	for scanner.Scan() {
 		count++
 	}
-	if count != 10 {
-		t.Fatalf("expected 10 records, got %d", count)
-	}
+	assert.Equal(t, 10, count, "expected 10 records")
 }
 
 func TestAsyncAuditLogger_BufferFull(t *testing.T) {
-	// Use a tiny buffer to force drops.
 	noop := NoopAuditLogger{}
-	// Wrap noop but with buffer size 1 so we can overflow.
 	async := &AsyncAuditLogger{
 		inner: noop,
 		ch:    make(chan DecisionRecord, 1),
@@ -160,17 +123,8 @@ func TestAsyncAuditLogger_BufferFull(t *testing.T) {
 		close(async.done)
 	}()
 
-	// First should succeed.
-	err1 := async.Log(context.Background(), DecisionRecord{Action: "check"})
-	if err1 != nil {
-		t.Fatalf("first log should succeed: %v", err1)
-	}
-
-	// Second should fail (buffer full, loop not running).
-	err2 := async.Log(context.Background(), DecisionRecord{Action: "check"})
-	if err2 == nil {
-		t.Fatal("expected buffer full error")
-	}
+	require.NoError(t, async.Log(context.Background(), DecisionRecord{Action: "check"}), "first log should succeed")
+	require.Error(t, async.Log(context.Background(), DecisionRecord{Action: "check"}), "expected buffer full error")
 
 	close(async.stop)
 	<-async.done
@@ -178,18 +132,12 @@ func TestAsyncAuditLogger_BufferFull(t *testing.T) {
 
 func TestNoopAuditLogger(t *testing.T) {
 	l := NoopAuditLogger{}
-	if err := l.Log(context.Background(), DecisionRecord{}); err != nil {
-		t.Fatalf("noop log: %v", err)
-	}
-	if err := l.Close(); err != nil {
-		t.Fatalf("noop close: %v", err)
-	}
+	require.NoError(t, l.Log(context.Background(), DecisionRecord{}), "noop log")
+	require.NoError(t, l.Close(), "noop close")
 }
 
 func TestAsyncAuditLogger_DefaultBuffer(t *testing.T) {
 	async := NewAsyncAuditLogger(NoopAuditLogger{}, 0)
-	if cap(async.ch) != 8192 {
-		t.Fatalf("expected default buffer 8192, got %d", cap(async.ch))
-	}
+	assert.Equal(t, 8192, cap(async.ch), "expected default buffer 8192")
 	async.Close()
 }

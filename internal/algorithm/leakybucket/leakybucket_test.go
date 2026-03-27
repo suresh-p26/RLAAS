@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/rlaas-io/rlaas/internal/store"
 	"github.com/rlaas-io/rlaas/internal/store/counter/memory"
 	"github.com/rlaas-io/rlaas/pkg/model"
@@ -49,181 +52,146 @@ func lbPolicy(limit int64, window string, leakRate float64) model.Policy {
 }
 
 func TestLeakyBucket_AllowThenDeny(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := lbPolicy(2, "1s", 1.0)
 	req := model.RequestContext{}
 
 	d, err := e.Evaluate(context.Background(), p, req, "k")
-	if err != nil || !d.Allowed {
-		t.Fatalf("first should allow: %+v err=%v", d, err)
-	}
-	if d.Remaining != 1 {
-		t.Fatalf("remaining should be 1, got %d", d.Remaining)
-	}
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "first should allow")
+	assert.Equal(t, int64(1), d.Remaining)
 
 	d, err = e.Evaluate(context.Background(), p, req, "k")
-	if err != nil || !d.Allowed {
-		t.Fatalf("second should allow: %+v err=%v", d, err)
-	}
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "second should allow")
 
 	d, err = e.Evaluate(context.Background(), p, req, "k")
-	if err != nil || d.Allowed {
-		t.Fatalf("third should deny: %+v err=%v", d, err)
-	}
-	if d.RetryAfter <= 0 {
-		t.Fatalf("RetryAfter should be positive, got %v", d.RetryAfter)
-	}
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "third should deny")
+	assert.Positive(t, d.RetryAfter, "RetryAfter should be positive")
 }
 
 func TestLeakyBucket_TimeBasedLeak(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := lbPolicy(2, "1s", 2.0)
 	req := model.RequestContext{}
 
 	e.Evaluate(context.Background(), p, req, "k")
 	e.Evaluate(context.Background(), p, req, "k")
 
-	d, _ := e.Evaluate(context.Background(), p, req, "k")
-	if d.Allowed {
-		t.Fatalf("should deny when full at same time")
-	}
+	d, err := e.Evaluate(context.Background(), p, req, "k")
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "should deny when full at same time")
 
 	now = now.Add(500 * time.Millisecond)
-	d, err := e.Evaluate(context.Background(), p, req, "k")
-	if err != nil || !d.Allowed {
-		t.Fatalf("after 0.5s leak should allow: %+v err=%v", d, err)
-	}
+	d, err = e.Evaluate(context.Background(), p, req, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "after 0.5s leak should allow")
 
 	now = now.Add(time.Second)
 	d, err = e.Evaluate(context.Background(), p, req, "k")
-	if err != nil || !d.Allowed {
-		t.Fatalf("after full leak should allow: %+v err=%v", d, err)
-	}
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "after full leak should allow")
 }
 
 func TestLeakyBucket_CustomCost(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := model.Policy{
 		Algorithm: model.AlgorithmConfig{Limit: 5, Window: "1s", LeakRate: 1.0, CostPerRequest: 3},
 		Action:    model.ActionDeny,
 	}
 
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed || d.Remaining != 2 {
-		t.Fatalf("first should allow with remaining 2: %+v", d)
-	}
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed)
+	assert.Equal(t, int64(2), d.Remaining, "first should allow with remaining 2")
 
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.Allowed {
-		t.Fatalf("second should deny (overflow)")
-	}
+	d, err = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "second should deny (overflow)")
 }
 
 func TestLeakyBucket_Quantity(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := lbPolicy(5, "1s", 1.0)
 
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{Quantity: 4}, "k")
-	if !d.Allowed {
-		t.Fatalf("should allow cost=4")
-	}
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{Quantity: 4}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "should allow cost=4")
 
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{Quantity: 4}, "k")
-	if d.Allowed {
-		t.Fatalf("should deny")
-	}
+	d, err = e.Evaluate(context.Background(), p, model.RequestContext{Quantity: 4}, "k")
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "should deny")
 }
 
 func TestLeakyBucket_DefaultLeakRate(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := lbPolicy(1, "1s", 0) // defaults to 1
+
 	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if err != nil || !d.Allowed {
-		t.Fatalf("should allow with default leak rate: %+v err=%v", d, err)
-	}
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "should allow with default leak rate")
 }
 
 func TestLeakyBucket_DefaultLimit(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := lbPolicy(0, "1s", 1)
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed {
-		t.Fatalf("first should allow with default limit")
-	}
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.Allowed {
-		t.Fatalf("second should deny with default limit")
-	}
+
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "first should allow with default limit")
+
+	d, err = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "second should deny with default limit")
 }
 
 func TestLeakyBucket_ShadowMode(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := model.Policy{
 		Algorithm: model.AlgorithmConfig{Limit: 1, Window: "1s", LeakRate: 1.0},
 		Action:    model.ActionShadowOnly,
 	}
+
 	e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed || !d.ShadowMode {
-		t.Fatalf("shadow mode should still allow: %+v", d)
-	}
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "shadow mode should still allow")
+	assert.True(t, d.ShadowMode)
 }
 
-func TestLeakyBucket_SetError(t *testing.T) {
-	e := New(&lbSetErrStore{})
-	now := time.Unix(1000, 0)
-	e.Now = func() time.Time { return now }
-	p := lbPolicy(10, "1s", 1.0)
-	if _, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k"); err == nil {
-		t.Fatalf("expected set error")
+func TestLeakyBucket_ErrorPaths(t *testing.T) {
+	tests := []struct {
+		name  string
+		store store.CounterStore
+	}{
+		{"set error", &lbSetErrStore{}},
+		{"get error", &lbGetErrStore{}},
+		{"cas error", &lbCASErrStore{}},
 	}
-}
-
-func TestLeakyBucket_GetError(t *testing.T) {
-	e := New(&lbGetErrStore{})
-	now := time.Unix(1000, 0)
-	e.Now = func() time.Time { return now }
-	p := lbPolicy(10, "1s", 1.0)
-	if _, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k"); err == nil {
-		t.Fatalf("expected get error")
-	}
-}
-
-func TestLeakyBucket_CASError(t *testing.T) {
-	e := New(&lbCASErrStore{})
-	now := time.Unix(1000, 0)
-	e.Now = func() time.Time { return now }
-	p := lbPolicy(10, "1s", 1.0)
-	if _, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k"); err == nil {
-		t.Fatalf("expected CAS error")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := New(tt.store)
+			now := time.Unix(1000, 0)
+			e.Now = func() time.Time { return now }
+			p := lbPolicy(10, "1s", 1.0)
+			_, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+			require.Error(t, err)
+		})
 	}
 }
 
@@ -232,28 +200,23 @@ func TestLeakyBucket_ContentionExhaustsRetries(t *testing.T) {
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
 	p := lbPolicy(10, "1s", 1.0)
+
 	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if err != nil {
-		t.Fatalf("contention should not error: %v", err)
-	}
-	if d.Allowed {
-		t.Fatalf("contention exhaustion should deny")
-	}
-	if d.Reason != "leaky_bucket_contention" {
-		t.Fatalf("reason should be contention, got %s", d.Reason)
-	}
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "contention exhaustion should deny")
+	assert.Equal(t, "leaky_bucket_contention", d.Reason)
 }
 
 func TestLeakyBucket_KeyIsolation(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := lbPolicy(1, "1s", 1.0)
-	d1, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "key1")
-	d2, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "key2")
-	if !d1.Allowed || !d2.Allowed {
-		t.Fatalf("different keys should be independent")
-	}
+
+	d1, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "key1")
+	require.NoError(t, err)
+	d2, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "key2")
+	require.NoError(t, err)
+	assert.True(t, d1.Allowed, "key1 should be independent")
+	assert.True(t, d2.Allowed, "key2 should be independent")
 }

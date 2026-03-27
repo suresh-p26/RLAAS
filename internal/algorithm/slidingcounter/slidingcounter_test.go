@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/rlaas-io/rlaas/internal/store"
 	"github.com/rlaas-io/rlaas/internal/store/counter/memory"
 	"github.com/rlaas-io/rlaas/pkg/model"
@@ -26,32 +29,108 @@ func swcPolicy(limit int64, window string) model.Policy {
 	return model.Policy{Algorithm: model.AlgorithmConfig{Limit: limit, Window: window}, Action: model.ActionDeny}
 }
 
-func TestSlidingCounter_AllowThenDeny(t *testing.T) {
-	s := memory.New()
-	e := New(s)
-	now := time.Unix(1000, 0)
-	e.Now = func() time.Time { return now }
+type evalExpectation struct {
+	allowed       bool
+	hasRemaining  bool
+	remaining     int64
+	shadowMode    bool
+	hasReason     bool
+	reason        string
+	retryPositive bool
+}
 
-	p := swcPolicy(2, "1m")
+type evalStep struct {
+	req  model.RequestContext
+	want evalExpectation
+}
 
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed || d.Remaining != 1 {
-		t.Fatalf("first should allow remaining=1: %+v", d)
+func TestSlidingCounter_TableDrivenScenarios(t *testing.T) {
+	tests := []struct {
+		name   string
+		policy model.Policy
+		key    string
+		steps  []evalStep
+	}{
+		{
+			name:   "allow then deny",
+			policy: swcPolicy(2, "1m"),
+			key:    "k",
+			steps: []evalStep{
+				{want: evalExpectation{allowed: true, hasRemaining: true, remaining: 1}},
+				{want: evalExpectation{allowed: true, hasRemaining: true, remaining: 0}},
+				{want: evalExpectation{allowed: false}},
+			},
+		},
+		{
+			name: "custom cost",
+			policy: model.Policy{
+				Algorithm: model.AlgorithmConfig{Limit: 5, Window: "1m", CostPerRequest: 3},
+				Action:    model.ActionDeny,
+			},
+			key: "k",
+			steps: []evalStep{
+				{want: evalExpectation{allowed: true, hasRemaining: true, remaining: 2}},
+				{want: evalExpectation{allowed: false}},
+			},
+		},
+		{
+			name:   "default limit fallback",
+			policy: swcPolicy(0, "1m"),
+			key:    "k",
+			steps: []evalStep{
+				{want: evalExpectation{allowed: true}},
+				{want: evalExpectation{allowed: false}},
+			},
+		},
+		{
+			name: "shadow mode allows on limit exceed",
+			policy: model.Policy{
+				Algorithm: model.AlgorithmConfig{Limit: 1, Window: "1m"},
+				Action:    model.ActionShadowOnly,
+			},
+			key: "k",
+			steps: []evalStep{
+				{want: evalExpectation{allowed: true}},
+				{want: evalExpectation{allowed: true, shadowMode: true}},
+			},
+		},
+		{
+			name:   "retry after set on deny",
+			policy: swcPolicy(1, "1m"),
+			key:    "k",
+			steps: []evalStep{
+				{want: evalExpectation{allowed: true}},
+				{want: evalExpectation{allowed: false, retryPositive: true}},
+			},
+		},
 	}
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed || d.Remaining != 0 {
-		t.Fatalf("second should allow remaining=0: %+v", d)
-	}
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.Allowed {
-		t.Fatalf("third should deny: %+v", d)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := New(memory.New())
+			now := time.Unix(1000, 0)
+			e.Now = func() time.Time { return now }
+			for _, step := range tt.steps {
+				got, err := e.Evaluate(context.Background(), tt.policy, step.req, tt.key)
+				require.NoError(t, err)
+				assert.Equal(t, step.want.allowed, got.Allowed)
+				if step.want.hasRemaining {
+					assert.Equal(t, step.want.remaining, got.Remaining)
+				}
+				assert.Equal(t, step.want.shadowMode, got.ShadowMode)
+				if step.want.hasReason {
+					assert.Equal(t, step.want.reason, got.Reason)
+				}
+				if step.want.retryPositive {
+					assert.Positive(t, got.RetryAfter)
+				}
+			}
+		})
 	}
 }
 
 func TestSlidingCounter_WeightedPreviousWindow(t *testing.T) {
-	s := memory.New()
-	e := New(s)
-
+	e := New(memory.New())
 	// Start at the very beginning of a minute boundary.
 	now := time.Unix(60, 0) // unix 60 = start of minute 1
 	e.Now = func() time.Time { return now }
@@ -68,21 +147,17 @@ func TestSlidingCounter_WeightedPreviousWindow(t *testing.T) {
 	now = time.Unix(150, 0) // 30s into minute 2
 	for i := 0; i < 6; i++ {
 		d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-		if err != nil || !d.Allowed {
-			t.Fatalf("request %d should be allowed (weight=0.5): %+v err=%v", i+1, d, err)
-		}
+		require.NoError(t, err)
+		assert.True(t, d.Allowed, "request should be allowed (weight=0.5)")
 	}
 
 	// Now estimated = 6 + 8*0.5 = 10, next should deny.
 	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.Allowed {
-		t.Fatalf("should deny when estimated reaches limit")
-	}
+	assert.False(t, d.Allowed, "should deny when estimated reaches limit")
 }
 
 func TestSlidingCounter_WindowRollover(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(60, 0)
 	e.Now = func() time.Time { return now }
 	p := swcPolicy(2, "1m")
@@ -93,100 +168,25 @@ func TestSlidingCounter_WindowRollover(t *testing.T) {
 	// Full window rollover: advance 2 full minutes so prev window has no data.
 	now = time.Unix(180, 0)
 	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed {
-		t.Fatalf("after full rollover should allow: %+v", d)
-	}
-}
-
-func TestSlidingCounter_CustomCost(t *testing.T) {
-	s := memory.New()
-	e := New(s)
-	now := time.Unix(60, 0)
-	e.Now = func() time.Time { return now }
-
-	p := model.Policy{
-		Algorithm: model.AlgorithmConfig{Limit: 5, Window: "1m", CostPerRequest: 3},
-		Action:    model.ActionDeny,
-	}
-
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed || d.Remaining != 2 {
-		t.Fatalf("first with cost=3 should allow remaining=2: %+v", d)
-	}
-
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.Allowed {
-		t.Fatalf("second with cost=3 should deny (6 > 5): %+v", d)
-	}
-}
-
-func TestSlidingCounter_DefaultLimit(t *testing.T) {
-	s := memory.New()
-	e := New(s)
-	now := time.Unix(60, 0)
-	e.Now = func() time.Time { return now }
-
-	p := swcPolicy(0, "1m") // limit=0 defaults to 1
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed {
-		t.Fatalf("first with default limit should allow")
-	}
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.Allowed {
-		t.Fatalf("second with default limit should deny")
-	}
-}
-
-func TestSlidingCounter_RetryAfter(t *testing.T) {
-	s := memory.New()
-	e := New(s)
-	now := time.Unix(60, 0)
-	e.Now = func() time.Time { return now }
-
-	p := swcPolicy(1, "1m")
-	e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.RetryAfter <= 0 {
-		t.Fatalf("RetryAfter should be positive, got %v", d.RetryAfter)
-	}
-}
-
-func TestSlidingCounter_ShadowMode(t *testing.T) {
-	s := memory.New()
-	e := New(s)
-	now := time.Unix(60, 0)
-	e.Now = func() time.Time { return now }
-
-	p := model.Policy{
-		Algorithm: model.AlgorithmConfig{Limit: 1, Window: "1m"},
-		Action:    model.ActionShadowOnly,
-	}
-	e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed || !d.ShadowMode {
-		t.Fatalf("shadow mode should still allow: %+v", d)
-	}
+	assert.True(t, d.Allowed, "after full rollover should allow")
 }
 
 func TestSlidingCounter_ErrorPath(t *testing.T) {
 	e := New(swcErrStore{})
-	if _, err := e.Evaluate(context.Background(), model.Policy{Algorithm: model.AlgorithmConfig{Limit: 1, Window: "1m"}}, model.RequestContext{}, "k"); err == nil {
-		t.Fatalf("expected error")
-	}
+	_, err := e.Evaluate(context.Background(), model.Policy{Algorithm: model.AlgorithmConfig{Limit: 1, Window: "1m"}}, model.RequestContext{}, "k")
+	require.Error(t, err)
 }
 
 func TestSlidingCounter_KeyIsolation(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(60, 0)
 	e.Now = func() time.Time { return now }
 
 	p := swcPolicy(1, "1m")
 	d1, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "key1")
 	d2, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "key2")
-	if !d1.Allowed || !d2.Allowed {
-		t.Fatalf("different keys should be independent")
-	}
+	assert.True(t, d1.Allowed, "key1 should be independent")
+	assert.True(t, d2.Allowed, "key2 should be independent")
 }
 
 func TestSlidingCounter_ContentionExhaustsRetries(t *testing.T) {
@@ -196,13 +196,7 @@ func TestSlidingCounter_ContentionExhaustsRetries(t *testing.T) {
 
 	p := swcPolicy(10, "1m")
 	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if err != nil {
-		t.Fatalf("contention should not error: %v", err)
-	}
-	if d.Allowed {
-		t.Fatalf("contention exhaustion should deny")
-	}
-	if d.Reason != "sliding_window_contention" {
-		t.Fatalf("unexpected reason: %s", d.Reason)
-	}
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "contention exhaustion should deny")
+	assert.Equal(t, "sliding_window_contention", d.Reason)
 }

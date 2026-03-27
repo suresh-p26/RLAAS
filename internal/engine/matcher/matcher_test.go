@@ -1,8 +1,12 @@
 package matcher
 
 import (
-	"github.com/rlaas-io/rlaas/pkg/model"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/rlaas-io/rlaas/pkg/model"
 )
 
 func TestSelectWinnerSpecificity(t *testing.T) {
@@ -13,31 +17,24 @@ func TestSelectWinnerSpecificity(t *testing.T) {
 		{PolicyID: "user", Enabled: true, Priority: 1, Scope: model.PolicyScope{OrgID: "acme", UserID: "u1", SignalType: "http"}},
 	}
 	matched, err := m.Match(req, policies)
-	if err != nil {
-		t.Fatalf("match failed: %v", err)
-	}
+	require.NoError(t, err, "match failed")
 	winner, err := m.SelectWinner(req, matched)
-	if err != nil {
-		t.Fatalf("select failed: %v", err)
-	}
-	if winner.PolicyID != "user" {
-		t.Fatalf("expected user policy, got %s", winner.PolicyID)
-	}
+	require.NoError(t, err, "select failed")
+	assert.Equal(t, "user", winner.PolicyID)
 }
 
 func TestSelectWinnerErrorAndTieBreak(t *testing.T) {
 	m := New()
-	if _, err := m.SelectWinner(model.RequestContext{}, nil); err == nil {
-		t.Fatalf("expected error when no policies")
-	}
+	_, err := m.SelectWinner(model.RequestContext{}, nil)
+	require.Error(t, err, "expected error when no policies")
+
 	policies := []model.Policy{
 		{PolicyID: "a", Enabled: true, Priority: 1, Scope: model.PolicyScope{OrgID: "acme"}},
 		{PolicyID: "b", Enabled: true, Priority: 1, Scope: model.PolicyScope{OrgID: "acme"}},
 	}
 	w, err := m.SelectWinner(model.RequestContext{}, policies)
-	if err != nil || w.PolicyID != "b" {
-		t.Fatalf("expected deterministic policy id tie-break")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "b", w.PolicyID, "expected deterministic policy id tie-break")
 }
 
 func TestMatchTagMismatch(t *testing.T) {
@@ -45,12 +42,8 @@ func TestMatchTagMismatch(t *testing.T) {
 	req := model.RequestContext{OrgID: "acme", Tags: map[string]string{"env": "dev"}}
 	policies := []model.Policy{{PolicyID: "p", Scope: model.PolicyScope{OrgID: "acme", Tags: map[string]string{"env": "prod"}}}}
 	matched, err := m.Match(req, policies)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(matched) != 0 {
-		t.Fatalf("expected no match due to tag mismatch")
-	}
+	require.NoError(t, err)
+	assert.Empty(t, matched, "expected no match due to tag mismatch")
 }
 
 func TestMatchExpression(t *testing.T) {
@@ -61,33 +54,35 @@ func TestMatchExpression(t *testing.T) {
 		{PolicyID: "p2", Scope: model.PolicyScope{OrgID: "acme"}, Metadata: map[string]string{"match_expr": "method==GET"}},
 	}
 	matched, err := m.Match(req, policies)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(matched) != 1 || matched[0].PolicyID != "p1" {
-		t.Fatalf("expected p1 to match expression")
-	}
+	require.NoError(t, err)
+	require.Len(t, matched, 1)
+	assert.Equal(t, "p1", matched[0].PolicyID, "expected p1 to match expression")
 }
 
 func TestEvaluateExpression(t *testing.T) {
 	req := model.RequestContext{OrgID: "acme", Method: "POST", Tags: map[string]string{"env": "prod"}}
-	ok, err := evaluateExpression(req, "org_id==acme&&method!=GET&&tag.env==prod")
-	if err != nil || !ok {
-		t.Fatalf("expected expression to pass")
+	tests := []struct {
+		name    string
+		expr    string
+		want    bool
+		wantErr bool
+	}{
+		{"all conditions match", "org_id==acme&&method!=GET&&tag.env==prod", true, false},
+		{"method condition fails", "method==GET", false, false},
+		{"invalid clause returns error", "bad-clause", false, true},
 	}
-	ok, err = evaluateExpression(req, "method==GET")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ok {
-		t.Fatalf("expected expression to fail")
-	}
-	if _, err = evaluateExpression(req, "bad-clause"); err == nil {
-		t.Fatalf("expected invalid clause error")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := evaluateExpression(req, tt.expr)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
 	}
 }
-
-// --- Additional coverage tests ---
 
 func TestMatchesScopeAllFields(t *testing.T) {
 	m := New()
@@ -109,11 +104,9 @@ func TestMatchesScopeAllFields(t *testing.T) {
 	}
 	policies := []model.Policy{{PolicyID: "full", Enabled: true, Scope: scope}}
 	matched, err := m.Match(req, policies)
-	if err != nil || len(matched) != 1 {
-		t.Fatalf("expected full scope match, got %d matches", len(matched))
-	}
+	require.NoError(t, err)
+	assert.Len(t, matched, 1, "expected full scope match")
 
-	// Mismatch on a single field should reject
 	for _, field := range []string{"environment", "region", "severity", "span_name", "topic", "consumer_group", "job_type"} {
 		badScope := scope
 		switch field {
@@ -132,11 +125,9 @@ func TestMatchesScopeAllFields(t *testing.T) {
 		case "job_type":
 			badScope.JobType = "realtime"
 		}
-		policies := []model.Policy{{PolicyID: "bad-" + field, Enabled: true, Scope: badScope}}
-		matched, _ := m.Match(req, policies)
-		if len(matched) != 0 {
-			t.Fatalf("expected mismatch on %s", field)
-		}
+		badPolicies := []model.Policy{{PolicyID: "bad-" + field, Enabled: true, Scope: badScope}}
+		badMatched, _ := m.Match(req, badPolicies)
+		assert.Empty(t, badMatched, "expected mismatch on %s", field)
 	}
 }
 
@@ -149,12 +140,8 @@ func TestSpecificityScoring(t *testing.T) {
 	}
 	matched, _ := m.Match(req, policies)
 	winner, err := m.SelectWinner(req, matched)
-	if err != nil {
-		t.Fatalf("select failed: %v", err)
-	}
-	if winner.PolicyID != "specific" {
-		t.Fatalf("expected more specific policy to win, got %s", winner.PolicyID)
-	}
+	require.NoError(t, err, "select failed")
+	assert.Equal(t, "specific", winner.PolicyID, "expected more specific policy to win")
 }
 
 func TestResolveExprFieldAllBranches(t *testing.T) {
@@ -178,18 +165,15 @@ func TestResolveExprFieldAllBranches(t *testing.T) {
 	}
 	for _, tc := range tests {
 		got := resolveExprField(req, tc.field)
-		if got != tc.expect {
-			t.Fatalf("resolveExprField(%q) = %q, want %q", tc.field, got, tc.expect)
-		}
+		assert.Equal(t, tc.expect, got, "resolveExprField(%q)", tc.field)
 	}
 }
 
 func TestEvaluateExpressionQuotedValues(t *testing.T) {
 	req := model.RequestContext{OrgID: "acme", Method: "POST"}
 	ok, err := evaluateExpression(req, `org_id=="acme"&&method=='POST'`)
-	if err != nil || !ok {
-		t.Fatalf("expected quoted expression to pass")
-	}
+	require.NoError(t, err)
+	assert.True(t, ok, "expected quoted expression to pass")
 }
 
 func TestMatchExpressionEmptyExpr(t *testing.T) {
@@ -199,9 +183,7 @@ func TestMatchExpressionEmptyExpr(t *testing.T) {
 		{PolicyID: "p1", Enabled: true, Scope: model.PolicyScope{OrgID: "acme"}, Metadata: map[string]string{"match_expr": "  "}},
 	}
 	matched, _ := m.Match(req, policies)
-	if len(matched) != 1 {
-		t.Fatal("empty match_expr should still match")
-	}
+	assert.Len(t, matched, 1, "empty match_expr should still match")
 }
 
 func TestMatchDisabledPoliciesSkipped(t *testing.T) {
@@ -211,20 +193,14 @@ func TestMatchDisabledPoliciesSkipped(t *testing.T) {
 		{PolicyID: "disabled", Enabled: false, Scope: model.PolicyScope{OrgID: "acme"}},
 	}
 	// Disabled policies still match on scope; the engine enforces Enabled check.
-	// Matcher only checks scope, so this should still match.
 	matched, _ := m.Match(req, policies)
-	if len(matched) != 1 {
-		t.Fatalf("matched %d, matcher should not filter on Enabled", len(matched))
-	}
+	assert.Len(t, matched, 1, "matcher should not filter on Enabled")
 }
 
 func TestMatchWildcardScope(t *testing.T) {
 	m := New()
 	req := model.RequestContext{OrgID: "acme", Service: "api"}
-	// Empty scope = wildcard
 	policies := []model.Policy{{PolicyID: "wildcard", Enabled: true, Scope: model.PolicyScope{}}}
 	matched, _ := m.Match(req, policies)
-	if len(matched) != 1 {
-		t.Fatal("empty scope should match any request")
-	}
+	assert.Len(t, matched, 1, "empty scope should match any request")
 }

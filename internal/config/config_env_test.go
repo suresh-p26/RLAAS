@@ -3,84 +3,87 @@ package config
 import (
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestValidate_AuthOIDCNoIssuer(t *testing.T) {
-	c := DefaultConfig()
-	c.Auth.Enabled = true
-	c.Auth.Mode = "oidc"
-	if err := c.Validate(); err == nil {
-		t.Fatal("expected error for oidc without issuer url")
+func TestValidate_AuthModes(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(*Config)
+		wantErr bool
+	}{
+		{"oidc without issuer url", func(c *Config) { c.Auth.Enabled = true; c.Auth.Mode = "oidc" }, true},
+		{"oidc with valid issuer url", func(c *Config) {
+			c.Auth.Enabled = true
+			c.Auth.Mode = "oidc"
+			c.Auth.OIDCIssuerURL = "https://accounts.google.com"
+		}, false},
+		{"jwt with secret valid", func(c *Config) {
+			c.Auth.Enabled = true
+			c.Auth.Mode = "jwt"
+			c.Auth.JWTSecret = "supersecret"
+		}, false},
+		{"invalid auth mode", func(c *Config) { c.Auth.Enabled = true; c.Auth.Mode = "kerberos" }, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := DefaultConfig()
+			tt.setup(&c)
+			err := c.Validate()
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 
-func TestValidate_AuthOIDCValid(t *testing.T) {
-	c := DefaultConfig()
-	c.Auth.Enabled = true
-	c.Auth.Mode = "oidc"
-	c.Auth.OIDCIssuerURL = "https://accounts.google.com"
-	if err := c.Validate(); err != nil {
-		t.Fatalf("expected valid oidc config: %v", err)
+func TestValidate_ClusterModes(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(*Config)
+		wantErr bool
+	}{
+		{"invalid redis mode", func(c *Config) { c.Cluster.Enabled = true; c.Cluster.RedisMode = "banana" }, true},
+		{"empty redis mode", func(c *Config) { c.Cluster.Enabled = true; c.Cluster.RedisMode = "" }, false},
+		{"single redis mode", func(c *Config) { c.Cluster.Enabled = true; c.Cluster.RedisMode = "single" }, false},
+		{"cluster redis mode", func(c *Config) { c.Cluster.Enabled = true; c.Cluster.RedisMode = "cluster" }, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := DefaultConfig()
+			tt.setup(&c)
+			err := c.Validate()
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 
-func TestValidate_AuthJWTValid(t *testing.T) {
-	c := DefaultConfig()
-	c.Auth.Enabled = true
-	c.Auth.Mode = "jwt"
-	c.Auth.JWTSecret = "supersecret"
-	if err := c.Validate(); err != nil {
-		t.Fatalf("expected valid jwt config: %v", err)
+func TestValidate_ServerModes(t *testing.T) {
+	tests := []struct {
+		name string
+		mode string
+	}{
+		{"sidecar mode", "sidecar"},
+		{"sdk mode", "sdk"},
 	}
-}
-
-func TestValidate_AuthInvalidMode(t *testing.T) {
-	c := DefaultConfig()
-	c.Auth.Enabled = true
-	c.Auth.Mode = "kerberos"
-	if err := c.Validate(); err == nil {
-		t.Fatal("expected error for invalid auth mode")
-	}
-}
-
-func TestValidate_ClusterInvalidRedisMode(t *testing.T) {
-	c := DefaultConfig()
-	c.Cluster.Enabled = true
-	c.Cluster.RedisMode = "banana"
-	if err := c.Validate(); err == nil {
-		t.Fatal("expected error for invalid redis mode")
-	}
-}
-
-func TestValidate_ClusterValidModes(t *testing.T) {
-	for _, mode := range []string{"", "single", "cluster"} {
-		c := DefaultConfig()
-		c.Cluster.Enabled = true
-		c.Cluster.RedisMode = mode
-		if err := c.Validate(); err != nil {
-			t.Fatalf("expected valid cluster mode %q: %v", mode, err)
-		}
-	}
-}
-
-func TestValidate_SidecarMode(t *testing.T) {
-	c := DefaultConfig()
-	c.Mode = "sidecar"
-	if err := c.Validate(); err != nil {
-		t.Fatalf("expected valid sidecar mode: %v", err)
-	}
-}
-
-func TestValidate_SDKMode(t *testing.T) {
-	c := DefaultConfig()
-	c.Mode = "sdk"
-	if err := c.Validate(); err != nil {
-		t.Fatalf("expected valid sdk mode: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := DefaultConfig()
+			c.Mode = tt.mode
+			require.NoError(t, c.Validate())
+		})
 	}
 }
 
 func TestLoadFromEnv_AllRemainingVars(t *testing.T) {
-	// Set all the env vars not yet tested in the existing TestLoadFromEnv.
 	t.Setenv("RLAAS_GRPC_ADDR", ":7070")
 	t.Setenv("RLAAS_READ_TIMEOUT", "3s")
 	t.Setenv("RLAAS_WRITE_TIMEOUT", "7s")
@@ -104,80 +107,33 @@ func TestLoadFromEnv_AllRemainingVars(t *testing.T) {
 	t.Setenv("RLAAS_AUDIT_DSN", "postgres://localhost/audit")
 	t.Setenv("RLAAS_LOG_FORMAT", "text")
 
-	// Cleanup happens via t.Setenv's automatic restore.
-
 	c := LoadFromEnv()
 
-	if c.Server.GRPCAddr != ":7070" {
-		t.Errorf("grpc addr: got %s", c.Server.GRPCAddr)
-	}
-	if c.Server.ReadTimeout.String() != "3s" {
-		t.Errorf("read timeout: got %v", c.Server.ReadTimeout)
-	}
-	if c.Server.WriteTimeout.String() != "7s" {
-		t.Errorf("write timeout: got %v", c.Server.WriteTimeout)
-	}
-	if c.Server.MaxBodyBytes != 2097152 {
-		t.Errorf("max body bytes: got %d", c.Server.MaxBodyBytes)
-	}
-	if c.TLS.CAFile != "/etc/ca.pem" {
-		t.Errorf("ca file: got %s", c.TLS.CAFile)
-	}
-	if c.Auth.JWTSecret != "secret123" {
-		t.Errorf("jwt secret: got %s", c.Auth.JWTSecret)
-	}
-	if c.Auth.JWTIssuer != "rlaas-issuer" {
-		t.Errorf("jwt issuer: got %s", c.Auth.JWTIssuer)
-	}
-	if c.Auth.JWTAudience != "rlaas-api" {
-		t.Errorf("jwt audience: got %s", c.Auth.JWTAudience)
-	}
-	if c.Auth.AdminRole != "admin" {
-		t.Errorf("admin role: got %s", c.Auth.AdminRole)
-	}
-	if c.Auth.ReadOnlyRole != "reader" {
-		t.Errorf("readonly role: got %s", c.Auth.ReadOnlyRole)
-	}
-	if c.Auth.OIDCIssuerURL != "https://auth.example.com" {
-		t.Errorf("oidc issuer: got %s", c.Auth.OIDCIssuerURL)
-	}
-	if c.CounterBackend.Driver != "redis" {
-		t.Errorf("counter backend: got %s", c.CounterBackend.Driver)
-	}
-	if c.CounterBackend.Address != "redis.local:6379" {
-		t.Errorf("redis addr: got %s", c.CounterBackend.Address)
-	}
-	if c.CounterBackend.Password != "pass123" {
-		t.Errorf("redis password: got %s", c.CounterBackend.Password)
-	}
-	if c.PolicyBackend.Driver != "postgres" {
-		t.Errorf("policy backend: got %s", c.PolicyBackend.Driver)
-	}
-	if c.PolicyBackend.DSN != "postgres://localhost/rlaas" {
-		t.Errorf("policy dsn: got %s", c.PolicyBackend.DSN)
-	}
-	if c.Cluster.NodeID != "node-1" {
-		t.Errorf("node id: got %s", c.Cluster.NodeID)
-	}
-	if c.Cluster.RegionName != "us-east-1" {
-		t.Errorf("region: got %s", c.Cluster.RegionName)
-	}
-	if c.Cluster.InvalidationDriver != "redis" {
-		t.Errorf("invalidation driver: got %s", c.Cluster.InvalidationDriver)
-	}
-	if c.Cluster.InvalidationAddr != "redis.local:6379" {
-		t.Errorf("invalidation addr: got %s", c.Cluster.InvalidationAddr)
-	}
-	if c.AuditLog.DSN != "postgres://localhost/audit" {
-		t.Errorf("audit dsn: got %s", c.AuditLog.DSN)
-	}
-	if c.Logging.Format != "text" {
-		t.Errorf("log format: got %s", c.Logging.Format)
-	}
+	assert.Equal(t, ":7070", c.Server.GRPCAddr)
+	assert.Equal(t, "3s", c.Server.ReadTimeout.String())
+	assert.Equal(t, "7s", c.Server.WriteTimeout.String())
+	assert.Equal(t, int64(2097152), c.Server.MaxBodyBytes)
+	assert.Equal(t, "/etc/ca.pem", c.TLS.CAFile)
+	assert.Equal(t, "secret123", c.Auth.JWTSecret)
+	assert.Equal(t, "rlaas-issuer", c.Auth.JWTIssuer)
+	assert.Equal(t, "rlaas-api", c.Auth.JWTAudience)
+	assert.Equal(t, "admin", c.Auth.AdminRole)
+	assert.Equal(t, "reader", c.Auth.ReadOnlyRole)
+	assert.Equal(t, "https://auth.example.com", c.Auth.OIDCIssuerURL)
+	assert.Equal(t, "redis", c.CounterBackend.Driver)
+	assert.Equal(t, "redis.local:6379", c.CounterBackend.Address)
+	assert.Equal(t, "pass123", c.CounterBackend.Password)
+	assert.Equal(t, "postgres", c.PolicyBackend.Driver)
+	assert.Equal(t, "postgres://localhost/rlaas", c.PolicyBackend.DSN)
+	assert.Equal(t, "node-1", c.Cluster.NodeID)
+	assert.Equal(t, "us-east-1", c.Cluster.RegionName)
+	assert.Equal(t, "redis", c.Cluster.InvalidationDriver)
+	assert.Equal(t, "redis.local:6379", c.Cluster.InvalidationAddr)
+	assert.Equal(t, "postgres://localhost/audit", c.AuditLog.DSN)
+	assert.Equal(t, "text", c.Logging.Format)
 }
 
 func TestLoadFromEnv_InvalidDurations(t *testing.T) {
-	// Invalid duration values should be ignored (default preserved).
 	t.Setenv("RLAAS_READ_TIMEOUT", "bad")
 	t.Setenv("RLAAS_WRITE_TIMEOUT", "also-bad")
 	t.Setenv("RLAAS_MAX_BODY_BYTES", "not-a-number")
@@ -185,27 +141,16 @@ func TestLoadFromEnv_InvalidDurations(t *testing.T) {
 	c := LoadFromEnv()
 	def := DefaultConfig()
 
-	if c.Server.ReadTimeout != def.Server.ReadTimeout {
-		t.Errorf("expected default read timeout preserved for invalid value")
-	}
-	if c.Server.WriteTimeout != def.Server.WriteTimeout {
-		t.Errorf("expected default write timeout preserved for invalid value")
-	}
-	if c.Server.MaxBodyBytes != def.Server.MaxBodyBytes {
-		t.Errorf("expected default max body bytes preserved for invalid value")
-	}
+	assert.Equal(t, def.Server.ReadTimeout, c.Server.ReadTimeout, "expected default read timeout preserved for invalid value")
+	assert.Equal(t, def.Server.WriteTimeout, c.Server.WriteTimeout, "expected default write timeout preserved for invalid value")
+	assert.Equal(t, def.Server.MaxBodyBytes, c.Server.MaxBodyBytes, "expected default max body bytes preserved for invalid value")
 }
 
 func TestLoadFromEnv_EmptyStringsIgnored(t *testing.T) {
-	// Ensure empty env vars don't clobber defaults.
 	_ = os.Unsetenv("RLAAS_MODE")
 	_ = os.Unsetenv("RLAAS_HTTP_ADDR")
 	c := LoadFromEnv()
 	def := DefaultConfig()
-	if c.Mode != def.Mode {
-		t.Errorf("mode should use default when env is empty")
-	}
-	if c.Server.HTTPAddr != def.Server.HTTPAddr {
-		t.Errorf("http addr should use default when env is empty")
-	}
+	assert.Equal(t, def.Mode, c.Mode, "mode should use default when env is empty")
+	assert.Equal(t, def.Server.HTTPAddr, c.Server.HTTPAddr, "http addr should use default when env is empty")
 }
