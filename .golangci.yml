@@ -3,14 +3,14 @@ version: "2"
 linters:
   default: none
   enable:
-    - errcheck      # unhandled errors
-    - govet         # suspicious constructs
-    - gosimple      # simplification opportunities
-    - staticcheck   # comprehensive static analysis
-    - ineffassign   # ineffectual assignments
-    - misspell      # common spelling mistakes
-    - unconvert     # unnecessary type conversions
-    - unparam       # unused function parameters
+    - errcheck
+    - govet
+    - gosimple
+    - staticcheck
+    - ineffassign
+    - misspell
+    - unconvert
+    - unparam
   settings:
     errcheck:
       check-blank: false
@@ -29,16 +29,3 @@ formatters:
     goimports:
       local-prefixes:
         - github.com/rlaas-io/rlaas
-
-issues:
-  max-issues-per-linter: 50
-  max-same-issues: 10
-  exclusions:
-    rules:
-      - path: "_test\\.go"
-        linters:
-          - errcheck
-          - unparam
-      - path: "api/proto"
-        linters:
-          - all
