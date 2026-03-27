@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #060610;
+  --surface: #0d0d1a;
+  --surface2: #13132a;
+  --border: rgba(255,255,255,0.06);
+  --border-hi: rgba(255,255,255,0.1);
+  --dim: #5a5a80;
+  --purple: #8b5cf6;
+  --indigo: #6366f1;
+  --cyan: #06b6d4;
+  --teal: #14b8a6;
+  --green: #22c55e;
+  --amber: #f59e0b;
+  --orange: #f97316;
+  --rose: #f43f5e;
+  --pink: #ec4899;
+  --blue: #3b82f6;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:var(--bg);
+  font-family:'DM Sans',sans-serif;
+  width:1200px;
+  padding:0;
+  margin:0;
+  overflow-x:hidden;
+}
+
+.canvas{
+  position:relative;
+  width:1200px;
+  min-height:100px;
+  background:var(--bg);
+  overflow:hidden;
+}
+
+/* Atmosphere */
+.canvas::before{
+  content:'';position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 700px 350px at 50% 5%,rgba(99,102,241,0.08),transparent),
+    radial-gradient(ellipse 500px 400px at 15% 55%,rgba(139,92,246,0.05),transparent),
+    radial-gradient(ellipse 500px 400px at 85% 70%,rgba(6,182,212,0.05),transparent),
+    radial-gradient(ellipse 400px 300px at 50% 95%,rgba(34,197,94,0.04),transparent);
+  pointer-events:none;z-index:0;
+}
+.canvas::after{
+  content:'';position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.012) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,0.012) 1px,transparent 1px);
+  background-size:36px 36px;
+  pointer-events:none;z-index:0;
+}
+
+.flow-svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;}
+.content{position:relative;z-index:2;padding:48px 40px 40px;}
+
+/* Animated lines */
+@keyframes flowDash{to{stroke-dashoffset:-20}}
+@keyframes glowPulse{0%,100%{opacity:.1}50%{opacity:.3}}
+.fl{fill:none;stroke-width:1.8;stroke-linecap:round}
+.fl-bg{fill:none;stroke-width:5;stroke-linecap:round;opacity:.08}
+.fl-glow{fill:none;stroke-width:14;stroke-linecap:round;filter:blur(8px);animation:glowPulse 3s ease-in-out infinite}
+.fl-dash{fill:none;stroke-width:1.8;stroke-linecap:round;stroke-dasharray:5 15;animation:flowDash 1s linear infinite}
+
+/* Title */
+.title-area{text-align:center;margin-bottom:40px}
+.title-badge{
+  display:inline-block;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);
+  color:#818cf8;font-size:11px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;
+  padding:5px 18px;border-radius:20px;font-family:'IBM Plex Mono',monospace;margin-bottom:12px;
+}
+.title-area h1{color:#fff;font-size:30px;font-weight:800;letter-spacing:-0.5px}
+.title-area h1 em{font-style:normal;color:#818cf8}
+.title-area .sub{color:var(--dim);font-size:14px;margin-top:6px}
+
+/* Section labels */
+.section-label{
+  display:flex;align-items:center;gap:12px;margin-bottom:14px;margin-top:8px;
+}
+.section-label .line{flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent)}
+.section-label span{
+  font-size:10px;font-family:'IBM Plex Mono',monospace;letter-spacing:2px;
+  text-transform:uppercase;color:var(--dim);white-space:nowrap;font-weight:500;
+}
+
+/* Generic node */
+.node{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:12px 16px;position:relative;overflow:hidden;text-align:center;
+  transition:border-color .2s;
+}
+.node::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.08),transparent);
+}
+.node-name{font-size:12px;font-weight:700;color:#e0e0f0;letter-spacing:-0.1px}
+.node-desc{font-size:9.5px;color:var(--dim);margin-top:2px;font-family:'IBM Plex Mono',monospace}
+
+/* Color accents on top */
+.node.client{border-top:2px solid rgba(99,102,241,0.5)}
+.node.adapter{border-top:2px solid rgba(6,182,212,0.5)}
+.node.engine{border-top:2px solid rgba(245,158,11,0.5)}
+.node.algo{border-top:2px solid rgba(139,92,246,0.5)}
+.node.store{border-top:2px solid rgba(20,184,166,0.5);border-radius:12px 12px 20px 20px}
+.node.decision{border-top:2px solid rgba(245,158,11,0.5)}
+.node.action{border-top:2px solid rgba(34,197,94,0.5)}
+
+/* Specific layouts */
+.row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.client-row{gap:12px}
+.adapter-row{gap:8px}
+.algo-row{gap:8px}
+.action-row{gap:10px}
+
+/* Clients */
+.client-row .node{min-width:130px;flex:0 0 auto}
+
+/* Adapters */
+.adapter-row .node{min-width:120px;flex:1;max-width:170px}
+
+/* Policy Evaluator - big central node */
+.engine-node{
+  background:linear-gradient(135deg,rgba(245,158,11,0.06),rgba(99,102,241,0.04));
+  border:1.5px solid rgba(245,158,11,0.3);
+  border-radius:16px;padding:20px 40px;text-align:center;
+  box-shadow:0 0 40px rgba(245,158,11,0.06);
+  display:inline-block;
+}
+.engine-node::before{
+  content:'';position:absolute;inset:-10px;border-radius:26px;
+  background:radial-gradient(ellipse,rgba(245,158,11,0.04),transparent 70%);z-index:-1;
+}
+.engine-node .node-name{font-size:16px;color:#fff}
+.engine-node .node-desc{font-size:11px}
+
+/* Algorithm + stores row */
+.algo-store-row{
+  display:grid;
+  grid-template-columns:1fr 300px 1fr;
+  gap:20px;
+  align-items:start;
+}
+.algo-col{display:flex;flex-direction:column;gap:8px}
+.store-col{display:flex;flex-direction:column;gap:12px;align-items:center}
+
+/* Store nodes with cylinder look */
+.store-node{
+  background:var(--surface);
+  border:1px solid rgba(20,184,166,0.2);
+  border-radius:12px;
+  padding:16px 24px;
+  text-align:center;
+  position:relative;
+  overflow:visible;
+  min-width:180px;
+}
+.store-node::before{
+  content:'';position:absolute;top:-6px;left:10%;right:10%;height:12px;
+  background:rgba(20,184,166,0.08);border-radius:50%;border:1px solid rgba(20,184,166,0.15);
+}
+.store-node .node-name{color:#5eead4;font-size:13px}
+.store-node .node-desc{color:var(--dim);font-size:10px;margin-top:3px;font-family:'IBM Plex Mono',monospace}
+
+/* Decision node */
+.decision-node{
+  background:linear-gradient(135deg,rgba(245,158,11,0.06),rgba(244,63,94,0.04));
+  border:1.5px solid rgba(245,158,11,0.3);border-radius:14px;
+  padding:14px 36px;text-align:center;display:inline-block;
+  box-shadow:0 0 30px rgba(245,158,11,0.08);
+}
+.decision-node .node-name{font-size:14px;color:#fff;font-weight:700}
+
+/* Action outcomes */
+.action-node{
+  padding:14px 18px;min-width:100px;position:relative;overflow:hidden;
+}
+.action-node.allow{border-top-color:rgba(34,197,94,0.6);background:rgba(34,197,94,0.04)}
+.action-node.deny{border-top-color:rgba(244,63,94,0.6);background:rgba(244,63,94,0.04)}
+.action-node.throttle{border-top-color:rgba(245,158,11,0.6);background:rgba(245,158,11,0.04)}
+.action-node.drop{border-top-color:rgba(249,115,22,0.6);background:rgba(249,115,22,0.04)}
+.action-node.shadow{border-top-color:rgba(139,92,246,0.6);background:rgba(139,92,246,0.04)}
+.action-icon{font-size:20px;margin-bottom:4px}
+.action-label{font-size:12px;font-weight:700;color:#fff}
+
+/* Center helper */
+.center-row{display:flex;justify-content:center}
+
+/* Gaps between layers (where flow lines go) */
+.flow-gap{height:56px;position:relative}
+.flow-gap.sm{height:44px}
+.flow-gap.lg{height:64px}
+
+/* Watermark */
+.watermark{
+  text-align:center;margin-top:28px;font-size:11px;color:rgba(255,255,255,0.12);
+  font-family:'IBM Plex Mono',monospace;letter-spacing:3px;text-transform:uppercase;
+}
+</style>
+</head>
+<body>
+<div class="canvas" id="canvas">
+  <svg class="flow-svg" id="flowSvg">
+    <defs>
+      <linearGradient id="g-indigo" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#6366f1" stop-opacity=".8"/><stop offset="100%" stop-color="#06b6d4" stop-opacity=".6"/></linearGradient>
+      <linearGradient id="g-cyan" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#06b6d4" stop-opacity=".8"/><stop offset="100%" stop-color="#f59e0b" stop-opacity=".6"/></linearGradient>
+      <linearGradient id="g-amber" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#f59e0b" stop-opacity=".8"/><stop offset="100%" stop-color="#8b5cf6" stop-opacity=".6"/></linearGradient>
+      <linearGradient id="g-purple" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#8b5cf6" stop-opacity=".7"/><stop offset="100%" stop-color="#f59e0b" stop-opacity=".5"/></linearGradient>
+      <linearGradient id="g-teal-h" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#f59e0b" stop-opacity=".6"/><stop offset="100%" stop-color="#14b8a6" stop-opacity=".7"/></linearGradient>
+      <linearGradient id="g-teal-h2" x1="100%" y1="0%" x2="0%" y2="0%"><stop offset="0%" stop-color="#f59e0b" stop-opacity=".6"/><stop offset="100%" stop-color="#14b8a6" stop-opacity=".7"/></linearGradient>
+      <linearGradient id="g-decision" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#f59e0b" stop-opacity=".7"/><stop offset="100%" stop-color="#f59e0b" stop-opacity=".5"/></linearGradient>
+      <linearGradient id="g-green" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#f59e0b" stop-opacity=".5"/><stop offset="100%" stop-color="#22c55e" stop-opacity=".7"/></linearGradient>
+      <linearGradient id="g-rose" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#f59e0b" stop-opacity=".5"/><stop offset="100%" stop-color="#f43f5e" stop-opacity=".7"/></linearGradient>
+      <linearGradient id="g-orange" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#f59e0b" stop-opacity=".5"/><stop offset="100%" stop-color="#f97316" stop-opacity=".7"/></linearGradient>
+      <linearGradient id="g-violet" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#f59e0b" stop-opacity=".5"/><stop offset="100%" stop-color="#8b5cf6" stop-opacity=".7"/></linearGradient>
+    </defs>
+  </svg>
+
+  <div class="content" id="content">
+
+    <!-- TITLE -->
+    <div class="title-area">
+      <div class="title-badge">Architecture Overview</div>
+      <h1><em>RLAAS</em> — System Architecture</h1>
+      <div class="sub">Rate Limiting As A Service · Policy-driven traffic control</div>
+    </div>
+
+    <!-- LAYER 1: CLIENTS -->
+    <div class="section-label"><div class="line"></div><span>Clients</span><div class="line"></div></div>
+    <div class="row client-row" id="clients">
+      <div class="node client" id="c-http"><div class="node-name">HTTP Service</div></div>
+      <div class="node client" id="c-sidecar"><div class="node-name">rlaas-agent</div><div class="node-desc">Sidecar</div></div>
+      <div class="node client" id="c-sdk"><div class="node-name">SDK</div><div class="node-desc">Go / Python / Java / TS / .NET</div></div>
+      <div class="node client" id="c-grpc"><div class="node-name">gRPC Service</div></div>
+    </div>
+
+    <div class="flow-gap" id="gap-c-a"></div>
+
+    <!-- LAYER 2: PROVIDER ADAPTERS -->
+    <div class="section-label"><div class="line"></div><span>Provider Adapters</span><div class="line"></div></div>
+    <div class="row adapter-row" id="adapters">
+      <div class="node adapter" id="a-http"><div class="node-name">HTTP Adapter</div></div>
+      <div class="node adapter" id="a-grpc"><div class="node-name">gRPC Adapter</div></div>
+      <div class="node adapter" id="a-otel"><div class="node-name">OpenTelemetry</div><div class="node-desc">logs & spans</div></div>
+      <div class="node adapter" id="a-datadog"><div class="node-name">Datadog</div><div class="node-desc">logs & metrics</div></div>
+      <div class="node adapter" id="a-fluent"><div class="node-name">Fluent Bit</div></div>
+      <div class="node adapter" id="a-envoy"><div class="node-name">Envoy / Istio</div></div>
+      <div class="node adapter" id="a-kafka"><div class="node-name">Kafka</div></div>
+    </div>
+
+    <div class="flow-gap lg" id="gap-a-e"></div>
+
+    <!-- LAYER 3: POLICY ENGINE -->
+    <div class="section-label"><div class="line"></div><span>Policy Engine</span><div class="line"></div></div>
+    <div class="center-row" id="engine-row">
+      <div class="engine-node" id="engine">
+        <div class="node-name">Policy Evaluator</div>
+        <div class="node-desc">match scope + expression → select algorithm → decide</div>
+      </div>
+    </div>
+
+    <div class="flow-gap lg" id="gap-e-algo"></div>
+
+    <!-- LAYER 4: ALGORITHMS + STORES -->
+    <div class="algo-store-row" id="algo-store">
+      <!-- Algorithms -->
+      <div class="algo-col" id="algo-col">
+        <div class="section-label" style="margin-top:0"><div class="line"></div><span>Algorithms</span><div class="line"></div></div>
+        <div class="node algo" id="al-token"><div class="node-name">Token Bucket</div></div>
+        <div class="node algo" id="al-sliding"><div class="node-name">Sliding Window</div></div>
+        <div class="node algo" id="al-fixed"><div class="node-name">Fixed Window</div></div>
+        <div class="node algo" id="al-leaky"><div class="node-name">Leaky Bucket</div></div>
+        <div class="node algo" id="al-conc"><div class="node-name">Concurrent Request Limiter</div></div>
+      </div>
+
+      <!-- Center spacer for flow lines -->
+      <div></div>
+
+      <!-- Stores -->
+      <div class="store-col" id="store-col">
+        <div class="store-node" id="store-counter">
+          <div class="node-name">Counter Store</div>
+          <div class="node-desc">Redis / Memory</div>
+        </div>
+        <div style="height:40px"></div>
+        <div class="store-node" id="store-policy">
+          <div class="node-name">Policy Store</div>
+          <div class="node-desc">YAML / API / PG / Oracle</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-gap lg" id="gap-algo-d"></div>
+
+    <!-- LAYER 5: DECISION -->
+    <div class="section-label"><div class="line"></div><span>Decision</span><div class="line"></div></div>
+    <div class="center-row" id="decision-row">
+      <div class="decision-node" id="decision">
+        <div class="node-name">Decision</div>
+      </div>
+    </div>
+
+    <div class="flow-gap" id="gap-d-act"></div>
+
+    <!-- LAYER 6: ACTIONS -->
+    <div class="section-label"><div class="line"></div><span>Actions</span><div class="line"></div></div>
+    <div class="row action-row" id="actions">
+      <div class="node action-node allow" id="act-allow">
+        <div class="action-icon">✅</div>
+        <div class="action-label" style="color:#86efac">ALLOW</div>
+      </div>
+      <div class="node action-node deny" id="act-deny">
+        <div class="action-icon">🛑</div>
+        <div class="action-label" style="color:#fda4af">DENY</div>
+      </div>
+      <div class="node action-node throttle" id="act-throttle">
+        <div class="action-icon">⏳</div>
+        <div class="action-label" style="color:#fcd34d">THROTTLE</div>
+      </div>
+      <div class="node action-node drop" id="act-drop">
+        <div class="action-icon">🗑️</div>
+        <div class="action-label" style="color:#fdba74">DROP</div>
+      </div>
+      <div class="node action-node shadow" id="act-shadow">
+        <div class="action-icon">👁️</div>
+        <div class="action-label" style="color:#c4b5fd">SHADOW</div>
+      </div>
+    </div>
+
+    <div class="watermark">rlaas-io.github.io/rlaas</div>
+  </div>
+</div>
+
+<script>
+function draw(){
+  const svg=document.getElementById('flowSvg');
+  const canvas=document.getElementById('canvas');
+  const cr=canvas.getBoundingClientRect();
+  svg.setAttribute('width',cr.width);
+  svg.setAttribute('height',cr.height);
+  svg.setAttribute('viewBox',`0 0 ${cr.width} ${cr.height}`);
+
+  const defs=svg.querySelector('defs');
+  svg.innerHTML='';svg.appendChild(defs);
+
+  function p(el){
+    const r=el.getBoundingClientRect();
+    return{cx:r.left+r.width/2-cr.left,cy:r.top+r.height/2-cr.top,
+      t:r.top-cr.top,b:r.bottom-cr.top,l:r.left-cr.left,r:r.right-cr.left,w:r.width,h:r.height};
+  }
+
+  function makePath(d,gId,color,particles=2){
+    // glow
+    const gw=document.createElementNS('http://www.w3.org/2000/svg','path');
+    gw.setAttribute('d',d);gw.classList.add('fl-glow');gw.setAttribute('stroke',`url(#${gId})`);
+    svg.appendChild(gw);
+    // bg
+    const bg=document.createElementNS('http://www.w3.org/2000/svg','path');
+    bg.setAttribute('d',d);bg.classList.add('fl-bg');bg.setAttribute('stroke',`url(#${gId})`);
+    svg.appendChild(bg);
+    // main
+    const mn=document.createElementNS('http://www.w3.org/2000/svg','path');
+    mn.setAttribute('d',d);mn.classList.add('fl');mn.setAttribute('stroke',`url(#${gId})`);
+    svg.appendChild(mn);
+    // dashes
+    const ds=document.createElementNS('http://www.w3.org/2000/svg','path');
+    ds.setAttribute('d',d);ds.classList.add('fl-dash');ds.setAttribute('stroke',color);
+    svg.appendChild(ds);
+    // particles
+    for(let i=0;i<particles;i++){
+      const pt=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      pt.setAttribute('r','3');pt.setAttribute('fill',color);
+      pt.style.filter=`drop-shadow(0 0 6px ${color})`;
+      const dur=2+Math.random()*1.5;
+      const mo=document.createElementNS('http://www.w3.org/2000/svg','animateMotion');
+      mo.setAttribute('dur',dur+'s');mo.setAttribute('repeatCount','indefinite');
+      mo.setAttribute('path',d);mo.setAttribute('begin',(i*dur/particles)+'s');
+      const op=document.createElementNS('http://www.w3.org/2000/svg','animate');
+      op.setAttribute('attributeName','opacity');op.setAttribute('values','0;1;1;0');
+      op.setAttribute('keyTimes','0;0.08;0.88;1');op.setAttribute('dur',dur+'s');
+      op.setAttribute('repeatCount','indefinite');op.setAttribute('begin',(i*dur/particles)+'s');
+      pt.appendChild(mo);pt.appendChild(op);svg.appendChild(pt);
+    }
+  }
+
+  // --- LAYER CONNECTIONS ---
+
+  // Clients → Adapters (fan-out, S-curves)
+  const clients=['c-http','c-sidecar','c-sdk','c-grpc'];
+  const adapters=['a-http','a-grpc','a-otel','a-datadog','a-fluent','a-envoy','a-kafka'];
+  // Each client fans to multiple adapters conceptually, but for clarity connect each client to ~2 adapters
+  const clientAdapterMap=[
+    ['c-http','a-http'],['c-sidecar','a-http'],['c-sidecar','a-envoy'],
+    ['c-sdk','a-grpc'],['c-sdk','a-otel'],['c-grpc','a-grpc'],
+    ['c-grpc','a-kafka'],['c-http','a-datadog'],['c-sdk','a-fluent'],
+  ];
+  clientAdapterMap.forEach(([cid,aid])=>{
+    const from=p(document.getElementById(cid));
+    const to=p(document.getElementById(aid));
+    const my=(from.b+to.t)/2;
+    const d=`M ${from.cx} ${from.b} C ${from.cx} ${my}, ${to.cx} ${my}, ${to.cx} ${to.t}`;
+    makePath(d,'g-indigo','#818cf8',1);
+  });
+
+  // Adapters → Policy Evaluator (all converge)
+  const eng=p(document.getElementById('engine'));
+  adapters.forEach(aid=>{
+    const from=p(document.getElementById(aid));
+    const my=(from.b+eng.t)/2;
+    const d=`M ${from.cx} ${from.b} C ${from.cx} ${my+5}, ${eng.cx} ${my-5}, ${eng.cx} ${eng.t}`;
+    makePath(d,'g-cyan','#22d3ee',1);
+  });
+
+  // Policy Evaluator → Algorithms (fan-out left)
+  const algos=['al-token','al-sliding','al-fixed','al-leaky','al-conc'];
+  algos.forEach(aid=>{
+    const to=p(document.getElementById(aid));
+    const sx=eng.cx, sy=eng.b;
+    const ex=to.r, ey=to.cy;
+    const midX=sx-(sx-ex)*0.4;
+    const d=`M ${sx} ${sy} C ${sx} ${sy+30}, ${midX} ${ey}, ${ex} ${ey}`;
+    makePath(d,'g-amber','#fbbf24',1);
+  });
+
+  // Policy Evaluator → Counter Store (right side)
+  const cs=p(document.getElementById('store-counter'));
+  {
+    const sx=eng.cx, sy=eng.b;
+    const ex=cs.l, ey=cs.cy;
+    const midX=sx+(ex-sx)*0.5;
+    const d=`M ${sx} ${sy} C ${sx} ${sy+30}, ${midX} ${ey}, ${ex} ${ey}`;
+    makePath(d,'g-teal-h','#2dd4bf',1);
+  }
+
+  // Policy Evaluator → Policy Store (right side, lower)
+  const ps=p(document.getElementById('store-policy'));
+  {
+    const sx=eng.cx, sy=eng.b;
+    const ex=ps.l, ey=ps.cy;
+    const midX=sx+(ex-sx)*0.4;
+    const d=`M ${sx} ${sy} C ${sx} ${sy+50}, ${midX} ${ey-10}, ${ex} ${ey}`;
+    makePath(d,'g-teal-h','#2dd4bf',1);
+  }
+
+  // Algorithms → Decision (converge down)
+  const dec=p(document.getElementById('decision'));
+  algos.forEach(aid=>{
+    const from=p(document.getElementById(aid));
+    const sx=from.cx, sy=from.b;
+    const ex=dec.cx, ey=dec.t;
+    const my=(sy+ey)/2;
+    const d=`M ${sx} ${sy} C ${sx} ${my+10}, ${ex} ${my-10}, ${ex} ${ey}`;
+    makePath(d,'g-purple','#a78bfa',1);
+  });
+
+  // Decision → Actions (fan-out)
+  const acts=['act-allow','act-deny','act-throttle','act-drop','act-shadow'];
+  const actColors=['g-green','g-rose','g-decision','g-orange','g-violet'];
+  const actDotColors=['#4ade80','#fb7185','#fbbf24','#fb923c','#a78bfa'];
+  acts.forEach((aid,i)=>{
+    const to=p(document.getElementById(aid));
+    const sx=dec.cx, sy=dec.b;
+    const ex=to.cx, ey=to.t;
+    const my=sy+(ey-sy)*0.45;
+    const d=`M ${sx} ${sy} C ${sx} ${my}, ${ex} ${my-6}, ${ex} ${ey}`;
+    makePath(d,actColors[i],actDotColors[i],1);
+  });
+}
+
+window.addEventListener('load',()=>setTimeout(draw,200));
+window.addEventListener('resize',draw);
+</script>
+</body>
+</html>

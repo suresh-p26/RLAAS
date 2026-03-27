@@ -1,0 +1,17 @@
+[package]
+name        = "rlaas-sdk"
+version     = "0.1.0"
+edition     = "2021"
+description = "Async Rust SDK for RLAAS HTTP APIs"
+license     = "Apache-2.0"
+repository  = "https://github.com/rlaas-io/rlaas"
+
+[dependencies]
+reqwest  = { version = "0.12", features = ["json"] }
+tokio    = { version = "1",    features = ["full"] }
+serde    = { version = "1",    features = ["derive"] }
+serde_json = "1"
+thiserror  = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
