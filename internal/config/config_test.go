@@ -4,74 +4,44 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDefaultConfig(t *testing.T) {
 	c := DefaultConfig()
-	if c.Mode != "server" {
-		t.Fatalf("expected mode=server, got %s", c.Mode)
-	}
-	if c.Server.ReadTimeout != 5*time.Second {
-		t.Fatalf("expected read timeout 5s, got %v", c.Server.ReadTimeout)
-	}
-	if c.Server.WriteTimeout != 10*time.Second {
-		t.Fatalf("expected write timeout 10s, got %v", c.Server.WriteTimeout)
-	}
-	if c.Server.MaxHeaderBytes != 1<<20 {
-		t.Fatalf("expected max header bytes 1MB, got %d", c.Server.MaxHeaderBytes)
-	}
-	if c.TLS.MinVersion != "1.2" {
-		t.Fatalf("expected TLS 1.2 min, got %s", c.TLS.MinVersion)
-	}
+	assert.Equal(t, "server", c.Mode)
+	assert.Equal(t, 5*time.Second, c.Server.ReadTimeout)
+	assert.Equal(t, 10*time.Second, c.Server.WriteTimeout)
+	assert.Equal(t, 1<<20, c.Server.MaxHeaderBytes)
+	assert.Equal(t, "1.2", c.TLS.MinVersion)
 }
 
-func TestValidate_ValidConfig(t *testing.T) {
-	c := DefaultConfig()
-	if err := c.Validate(); err != nil {
-		t.Fatalf("default config should be valid: %v", err)
+func TestValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(*Config)
+		wantErr bool
+	}{
+		{"valid default config", func(_ *Config) {}, false},
+		{"invalid mode", func(c *Config) { c.Mode = "invalid" }, true},
+		{"TLS enabled without cert or key", func(c *Config) { c.TLS.Enabled = true }, true},
+		{"auth apikey with empty key list", func(c *Config) { c.Auth.Enabled = true; c.Auth.Mode = "apikey" }, true},
+		{"auth jwt without secret", func(c *Config) { c.Auth.Enabled = true; c.Auth.Mode = "jwt" }, true},
+		{"cluster sentinel without master name", func(c *Config) { c.Cluster.Enabled = true; c.Cluster.RedisMode = "sentinel" }, true},
 	}
-}
-
-func TestValidate_InvalidMode(t *testing.T) {
-	c := DefaultConfig()
-	c.Mode = "invalid"
-	if err := c.Validate(); err == nil {
-		t.Fatal("expected error for invalid mode")
-	}
-}
-
-func TestValidate_TLSMissingCert(t *testing.T) {
-	c := DefaultConfig()
-	c.TLS.Enabled = true
-	if err := c.Validate(); err == nil {
-		t.Fatal("expected error for missing cert/key")
-	}
-}
-
-func TestValidate_AuthAPIKeyEmpty(t *testing.T) {
-	c := DefaultConfig()
-	c.Auth.Enabled = true
-	c.Auth.Mode = "apikey"
-	if err := c.Validate(); err == nil {
-		t.Fatal("expected error for empty api keys")
-	}
-}
-
-func TestValidate_AuthJWTNoSecret(t *testing.T) {
-	c := DefaultConfig()
-	c.Auth.Enabled = true
-	c.Auth.Mode = "jwt"
-	if err := c.Validate(); err == nil {
-		t.Fatal("expected error for missing jwt secret")
-	}
-}
-
-func TestValidate_ClusterSentinelNoMaster(t *testing.T) {
-	c := DefaultConfig()
-	c.Cluster.Enabled = true
-	c.Cluster.RedisMode = "sentinel"
-	if err := c.Validate(); err == nil {
-		t.Fatal("expected error for sentinel without master name")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := DefaultConfig()
+			tt.setup(&c)
+			err := c.Validate()
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 
@@ -93,7 +63,6 @@ func TestLoadFromEnv(t *testing.T) {
 	t.Setenv("RLAAS_AUDIT_FILE", "/var/log/audit.jsonl")
 	t.Setenv("RLAAS_LOG_LEVEL", "debug")
 
-	// Need to ensure clean env after test
 	defer func() {
 		for _, key := range []string{
 			"RLAAS_MODE", "RLAAS_HTTP_ADDR", "RLAAS_TLS_ENABLED",
@@ -110,37 +79,18 @@ func TestLoadFromEnv(t *testing.T) {
 
 	c := LoadFromEnv()
 
-	if c.Mode != "sidecar" {
-		t.Errorf("mode: got %s, want sidecar", c.Mode)
-	}
-	if c.Server.HTTPAddr != ":9999" {
-		t.Errorf("http addr: got %s, want :9999", c.Server.HTTPAddr)
-	}
-	if !c.TLS.Enabled {
-		t.Error("tls should be enabled")
-	}
-	if c.TLS.CertFile != "/etc/cert.pem" {
-		t.Errorf("cert file: got %s", c.TLS.CertFile)
-	}
-	if !c.Auth.Enabled || c.Auth.Mode != "apikey" {
-		t.Error("auth should be enabled with apikey mode")
-	}
-	if len(c.Auth.APIKeys) != 2 {
-		t.Errorf("expected 2 api keys, got %d", len(c.Auth.APIKeys))
-	}
-	if !c.Cluster.Enabled || c.Cluster.RedisMode != "sentinel" {
-		t.Error("cluster should be enabled with sentinel mode")
-	}
-	if c.Cluster.RedisMasterName != "mymaster" {
-		t.Errorf("master name: got %s", c.Cluster.RedisMasterName)
-	}
-	if len(c.Cluster.RedisSentinelAddrs) != 2 {
-		t.Errorf("expected 2 sentinel addrs, got %d", len(c.Cluster.RedisSentinelAddrs))
-	}
-	if !c.AuditLog.Enabled || c.AuditLog.Driver != "file" {
-		t.Error("audit should be enabled with file driver")
-	}
-	if c.Logging.Level != "debug" {
-		t.Errorf("log level: got %s", c.Logging.Level)
-	}
+	assert.Equal(t, "sidecar", c.Mode)
+	assert.Equal(t, ":9999", c.Server.HTTPAddr)
+	assert.True(t, c.TLS.Enabled, "tls should be enabled")
+	assert.Equal(t, "/etc/cert.pem", c.TLS.CertFile)
+	assert.True(t, c.Auth.Enabled, "auth should be enabled")
+	assert.Equal(t, "apikey", c.Auth.Mode)
+	assert.Len(t, c.Auth.APIKeys, 2, "expected 2 api keys")
+	assert.True(t, c.Cluster.Enabled, "cluster should be enabled")
+	assert.Equal(t, "sentinel", c.Cluster.RedisMode)
+	assert.Equal(t, "mymaster", c.Cluster.RedisMasterName)
+	assert.Len(t, c.Cluster.RedisSentinelAddrs, 2, "expected 2 sentinel addrs")
+	assert.True(t, c.AuditLog.Enabled, "audit should be enabled")
+	assert.Equal(t, "file", c.AuditLog.Driver)
+	assert.Equal(t, "debug", c.Logging.Level)
 }

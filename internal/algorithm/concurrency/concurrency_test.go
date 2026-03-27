@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/rlaas-io/rlaas/internal/store"
 	"github.com/rlaas-io/rlaas/internal/store/counter/memory"
 	"github.com/rlaas-io/rlaas/pkg/model"
@@ -22,123 +25,100 @@ func cPolicy(maxConc int64) model.Policy {
 }
 
 func TestConcurrency_AllowThenDeny(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	p := cPolicy(2)
 
 	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if err != nil || !d.Allowed {
-		t.Fatalf("first should allow: %+v err=%v", d, err)
-	}
-	if d.Remaining != 1 {
-		t.Fatalf("remaining should be 1, got %d", d.Remaining)
-	}
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "first should allow")
+	assert.Equal(t, int64(1), d.Remaining)
 
 	d, err = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if err != nil || !d.Allowed {
-		t.Fatalf("second should allow: %+v err=%v", d, err)
-	}
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "second should allow")
 
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.Allowed {
-		t.Fatalf("third should deny: %+v", d)
-	}
+	d, err = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "third should deny")
 }
 
 func TestConcurrency_Release(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	p := cPolicy(1)
 
-	// Acquire the single slot.
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed {
-		t.Fatalf("first should allow")
-	}
-
-	// Should deny (all slots taken).
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.Allowed {
-		t.Fatalf("second should deny when slot taken")
-	}
-
-	// Release the slot.
-	if err := e.Release(context.Background(), "k"); err != nil {
-		t.Fatalf("release error: %v", err)
-	}
-
-	// Should allow again after release.
 	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if err != nil || !d.Allowed {
-		t.Fatalf("after release should allow: %+v err=%v", d, err)
-	}
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "first should allow")
+
+	d, err = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "second should deny when slot taken")
+
+	err = e.Release(context.Background(), "k")
+	require.NoError(t, err, "release should not error")
+
+	d, err = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "after release should allow")
 }
 
 func TestConcurrency_CustomLeaseTTL(t *testing.T) {
-	s := memory.New()
-	e := New(s)
-	// LeaseTTL in seconds.
+	e := New(memory.New())
 	p := model.Policy{
 		Algorithm: model.AlgorithmConfig{MaxConcurrency: 1, LeaseTTL: 300},
 		Action:    model.ActionDeny,
 	}
 
 	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if err != nil || !d.Allowed {
-		t.Fatalf("should allow: %+v err=%v", d, err)
-	}
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "should allow")
 
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.Allowed {
-		t.Fatalf("should deny (slot used with custom TTL)")
-	}
+	d, err = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "should deny (slot used with custom TTL)")
 }
 
 func TestConcurrency_DefaultLimitFallback(t *testing.T) {
-	s := memory.New()
-	e := New(s)
-	// Both MaxConcurrency and Limit are 0 -> defaults to 1.
+	e := New(memory.New())
 	p := model.Policy{Algorithm: model.AlgorithmConfig{}, Action: model.ActionDeny}
 
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed {
-		t.Fatalf("first with default limit should allow")
-	}
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.Allowed {
-		t.Fatalf("second with default limit should deny")
-	}
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "first with default limit should allow")
+
+	d, err = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "second with default limit should deny")
 }
 
 func TestConcurrency_ShadowMode(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	p := model.Policy{
 		Algorithm: model.AlgorithmConfig{MaxConcurrency: 1},
 		Action:    model.ActionShadowOnly,
 	}
+
 	e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed || !d.ShadowMode {
-		t.Fatalf("shadow mode should still allow: %+v", d)
-	}
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "shadow mode should still allow")
+	assert.True(t, d.ShadowMode)
 }
 
 func TestConcurrency_ErrorPath(t *testing.T) {
 	e := New(errLeaseStore{})
-	if _, err := e.Evaluate(context.Background(), model.Policy{Algorithm: model.AlgorithmConfig{Limit: 1}}, model.RequestContext{}, "k"); err == nil {
-		t.Fatalf("expected error")
-	}
+	_, err := e.Evaluate(context.Background(), model.Policy{Algorithm: model.AlgorithmConfig{Limit: 1}}, model.RequestContext{}, "k")
+	require.Error(t, err)
 }
 
 func TestConcurrency_KeyIsolation(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	p := cPolicy(1)
 
-	d1, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "key1")
-	d2, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "key2")
-	if !d1.Allowed || !d2.Allowed {
-		t.Fatalf("different keys should be independent")
-	}
+	d1, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "key1")
+	require.NoError(t, err)
+	d2, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "key2")
+	require.NoError(t, err)
+	assert.True(t, d1.Allowed, "key1 should be independent")
+	assert.True(t, d2.Allowed, "key2 should be independent")
 }

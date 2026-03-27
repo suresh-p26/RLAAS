@@ -11,182 +11,245 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestAuthMiddleware_Disabled(t *testing.T) {
+func TestAuthMiddleware(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	cfg := AuthMiddlewareConfig{Enabled: false}
-	h := AuthMiddleware(cfg, inner)
 
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest("GET", "/rlaas/v1/policies", nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("disabled auth should pass through, got %d", rec.Code)
-	}
-}
-
-func TestAuthMiddleware_ExemptPath(t *testing.T) {
-	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	cfg := AuthMiddlewareConfig{
-		Enabled:     true,
-		Mode:        AuthModeAPIKey,
-		APIKeys:     map[string]bool{"secret": true},
-		ExemptPaths: []string{"/healthz"},
-	}
-	h := AuthMiddleware(cfg, inner)
-
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest("GET", "/healthz", nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("exempt path should pass, got %d", rec.Code)
-	}
-}
-
-func TestAuthMiddleware_APIKey_Valid(t *testing.T) {
-	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	cfg := AuthMiddlewareConfig{
+	apiKeyCfg := AuthMiddlewareConfig{
 		Enabled: true,
 		Mode:    AuthModeAPIKey,
 		APIKeys: map[string]bool{"my-secret-key": true},
 	}
-	h := AuthMiddleware(cfg, inner)
 
-	req := httptest.NewRequest("GET", "/rlaas/v1/policies", nil)
-	req.Header.Set("X-Api-Key", "my-secret-key")
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("valid API key should pass, got %d", rec.Code)
+	tests := []struct {
+		name       string
+		cfg        AuthMiddlewareConfig
+		method     string
+		path       string
+		setupReq   func(*http.Request)
+		wantStatus int
+	}{
+		{
+			name:       "disabled auth passes through",
+			cfg:        AuthMiddlewareConfig{Enabled: false},
+			method:     "GET",
+			path:       "/rlaas/v1/policies",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "exempt path skips auth check",
+			cfg: AuthMiddlewareConfig{
+				Enabled:     true,
+				Mode:        AuthModeAPIKey,
+				APIKeys:     map[string]bool{"secret": true},
+				ExemptPaths: []string{"/healthz"},
+			},
+			method:     "GET",
+			path:       "/healthz",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "valid API key passes",
+			cfg:    apiKeyCfg,
+			method: "GET",
+			path:   "/rlaas/v1/policies",
+			setupReq: func(r *http.Request) {
+				r.Header.Set("X-Api-Key", "my-secret-key")
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "invalid API key rejected",
+			cfg:    apiKeyCfg,
+			method: "GET",
+			path:   "/rlaas/v1/policies",
+			setupReq: func(r *http.Request) {
+				r.Header.Set("X-Api-Key", "wrong-key")
+			},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "missing API key rejected",
+			cfg:        apiKeyCfg,
+			method:     "GET",
+			path:       "/rlaas/v1/policies",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:   "API key via Bearer header passes",
+			cfg:    apiKeyCfg,
+			method: "GET",
+			path:   "/rlaas/v1/policies",
+			setupReq: func(r *http.Request) {
+				r.Header.Set("Authorization", "Bearer my-secret-key")
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "unknown auth mode returns 500",
+			cfg:        AuthMiddlewareConfig{Enabled: true, Mode: "unknown"},
+			method:     "GET",
+			path:       "/rlaas/v1/policies",
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := AuthMiddleware(tt.cfg, inner)
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			if tt.setupReq != nil {
+				tt.setupReq(req)
+			}
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			assert.Equal(t, tt.wantStatus, rec.Code)
+		})
 	}
 }
 
-func TestAuthMiddleware_APIKey_Invalid(t *testing.T) {
-	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	cfg := AuthMiddlewareConfig{
-		Enabled: true,
-		Mode:    AuthModeAPIKey,
-		APIKeys: map[string]bool{"my-secret-key": true},
-	}
-	h := AuthMiddleware(cfg, inner)
-
-	req := httptest.NewRequest("GET", "/rlaas/v1/policies", nil)
-	req.Header.Set("X-Api-Key", "wrong-key")
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("invalid API key should get 401, got %d", rec.Code)
-	}
-}
-
-func TestAuthMiddleware_APIKey_Missing(t *testing.T) {
-	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	cfg := AuthMiddlewareConfig{
-		Enabled: true,
-		Mode:    AuthModeAPIKey,
-		APIKeys: map[string]bool{"my-secret-key": true},
-	}
-	h := AuthMiddleware(cfg, inner)
-
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest("GET", "/rlaas/v1/policies", nil))
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("missing API key should get 401, got %d", rec.Code)
-	}
-}
-
-func TestAuthMiddleware_JWT_Valid(t *testing.T) {
+func TestAuthMiddleware_JWT(t *testing.T) {
 	secret := []byte("test-secret")
-	token := makeTestJWT(map[string]interface{}{
-		"sub":  "user1",
-		"role": "admin",
-		"iss":  "rlaas",
-		"aud":  "rlaas-api",
-		"exp":  float64(time.Now().Add(time.Hour).Unix()),
-	}, secret)
 
-	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	cfg := AuthMiddlewareConfig{
-		Enabled:     true,
-		Mode:        AuthModeJWT,
-		JWTSecret:   secret,
-		JWTIssuer:   "rlaas",
-		JWTAudience: "rlaas-api",
-		AdminRole:   "admin",
+	tests := []struct {
+		name       string
+		cfg        AuthMiddlewareConfig
+		claims     map[string]interface{}
+		method     string
+		path       string
+		noToken    bool
+		wantStatus int
+	}{
+		{
+			name: "valid JWT passes",
+			cfg: AuthMiddlewareConfig{
+				Enabled:     true,
+				Mode:        AuthModeJWT,
+				JWTSecret:   secret,
+				JWTIssuer:   "rlaas",
+				JWTAudience: "rlaas-api",
+				AdminRole:   "admin",
+			},
+			claims: map[string]interface{}{
+				"sub":  "user1",
+				"role": "admin",
+				"iss":  "rlaas",
+				"aud":  "rlaas-api",
+				"exp":  float64(time.Now().Add(time.Hour).Unix()),
+			},
+			method:     "POST",
+			path:       "/rlaas/v1/policies",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "expired JWT rejected",
+			cfg: AuthMiddlewareConfig{
+				Enabled:   true,
+				Mode:      AuthModeJWT,
+				JWTSecret: secret,
+			},
+			claims: map[string]interface{}{
+				"sub": "user1",
+				"exp": float64(time.Now().Add(-time.Hour).Unix()),
+			},
+			method:     "GET",
+			path:       "/rlaas/v1/policies",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name: "wrong role denied on write",
+			cfg: AuthMiddlewareConfig{
+				Enabled:   true,
+				Mode:      AuthModeJWT,
+				JWTSecret: secret,
+				AdminRole: "admin",
+			},
+			claims: map[string]interface{}{
+				"sub":  "user1",
+				"role": "viewer",
+				"exp":  float64(time.Now().Add(time.Hour).Unix()),
+			},
+			method:     "DELETE",
+			path:       "/rlaas/v1/policies/123",
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name: "JWT without exp claim passes",
+			cfg: AuthMiddlewareConfig{
+				Enabled:   true,
+				Mode:      AuthModeJWT,
+				JWTSecret: secret,
+			},
+			claims:     map[string]interface{}{"sub": "user1"},
+			method:     "GET",
+			path:       "/rlaas/v1/policies",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "JWT with no issuer or audience config passes",
+			cfg: AuthMiddlewareConfig{
+				Enabled:   true,
+				Mode:      AuthModeJWT,
+				JWTSecret: secret,
+			},
+			claims: map[string]interface{}{
+				"sub": "user1",
+				"exp": float64(time.Now().Add(time.Hour).Unix()),
+			},
+			method:     "GET",
+			path:       "/rlaas/v1/policies",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "non-admin role passes on read-only GET",
+			cfg: AuthMiddlewareConfig{
+				Enabled:   true,
+				Mode:      AuthModeJWT,
+				JWTSecret: secret,
+				AdminRole: "admin",
+			},
+			claims: map[string]interface{}{
+				"sub":  "user1",
+				"role": "viewer",
+				"exp":  float64(time.Now().Add(time.Hour).Unix()),
+			},
+			method:     "GET",
+			path:       "/rlaas/v1/policies",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "missing JWT token returns 401",
+			cfg: AuthMiddlewareConfig{
+				Enabled:   true,
+				Mode:      AuthModeJWT,
+				JWTSecret: secret,
+			},
+			noToken:    true,
+			method:     "GET",
+			path:       "/rlaas/v1/policies",
+			wantStatus: http.StatusUnauthorized,
+		},
 	}
-	h := AuthMiddleware(cfg, inner)
 
-	req := httptest.NewRequest("POST", "/rlaas/v1/policies", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("valid JWT should pass, got %d", rec.Code)
-	}
-}
-
-func TestAuthMiddleware_JWT_Expired(t *testing.T) {
-	secret := []byte("test-secret")
-	token := makeTestJWT(map[string]interface{}{
-		"sub": "user1",
-		"exp": float64(time.Now().Add(-time.Hour).Unix()),
-	}, secret)
-
-	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	cfg := AuthMiddlewareConfig{
-		Enabled:   true,
-		Mode:      AuthModeJWT,
-		JWTSecret: secret,
-	}
-	h := AuthMiddleware(cfg, inner)
-
-	req := httptest.NewRequest("GET", "/rlaas/v1/policies", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expired JWT should get 401, got %d", rec.Code)
-	}
-}
-
-func TestAuthMiddleware_JWT_WrongRole(t *testing.T) {
-	secret := []byte("test-secret")
-	token := makeTestJWT(map[string]interface{}{
-		"sub":  "user1",
-		"role": "viewer",
-		"exp":  float64(time.Now().Add(time.Hour).Unix()),
-	}, secret)
-
-	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	cfg := AuthMiddlewareConfig{
-		Enabled:   true,
-		Mode:      AuthModeJWT,
-		JWTSecret: secret,
-		AdminRole: "admin",
-	}
-	h := AuthMiddleware(cfg, inner)
-
-	req := httptest.NewRequest("DELETE", "/rlaas/v1/policies/123", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("wrong role should get 403, got %d", rec.Code)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+			h := AuthMiddleware(tt.cfg, inner)
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			if !tt.noToken {
+				req.Header.Set("Authorization", "Bearer "+makeTestJWT(tt.claims, secret))
+			}
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			assert.Equal(t, tt.wantStatus, rec.Code)
+		})
 	}
 }
 
@@ -198,9 +261,7 @@ func TestPanicRecovery(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("panic should return 500, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusInternalServerError, rec.Code, "panic should return 500")
 }
 
 func TestMaxBodyBytes(t *testing.T) {
@@ -218,9 +279,7 @@ func TestMaxBodyBytes(t *testing.T) {
 	body := strings.NewReader(strings.Repeat("x", 100))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("POST", "/", body))
-	if rec.Code != http.StatusRequestEntityTooLarge {
-		t.Fatalf("oversized body should be rejected, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusRequestEntityTooLarge, rec.Code, "oversized body should be rejected")
 }
 
 func TestHTTPServer_ReadinessProbe(t *testing.T) {
@@ -230,17 +289,13 @@ func TestHTTPServer_ReadinessProbe(t *testing.T) {
 	// Not ready initially.
 	rec := httptest.NewRecorder()
 	s.Mux.ServeHTTP(rec, httptest.NewRequest("GET", "/readyz", nil))
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("expected 503 before ready, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code, "expected 503 before ready")
 
 	// Set ready.
 	s.SetReady(true)
 	rec = httptest.NewRecorder()
 	s.Mux.ServeHTTP(rec, httptest.NewRequest("GET", "/readyz", nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200 after ready, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusOK, rec.Code, "expected 200 after ready")
 }
 
 // makeTestJWT creates a minimal HS256 JWT for testing.

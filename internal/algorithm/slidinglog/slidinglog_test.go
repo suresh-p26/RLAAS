@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/rlaas-io/rlaas/internal/store"
 	"github.com/rlaas-io/rlaas/internal/store/counter/memory"
 	"github.com/rlaas-io/rlaas/pkg/model"
@@ -26,25 +29,24 @@ func slPolicy(limit int64, window string) model.Policy {
 }
 
 func TestSlidingLog_AllowThenDeny(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := slPolicy(2, "1m")
 
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed || d.Remaining != 1 {
-		t.Fatalf("first should allow remaining=1: %+v", d)
-	}
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed || d.Remaining != 0 {
-		t.Fatalf("second should allow remaining=0: %+v", d)
-	}
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.Allowed {
-		t.Fatalf("third should deny: %+v", d)
-	}
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed)
+	assert.Equal(t, int64(1), d.Remaining)
+
+	d, err = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed)
+	assert.Equal(t, int64(0), d.Remaining)
+
+	d, err = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.False(t, d.Allowed)
 }
 
 func TestSlidingLog_NoPollutionOnDeny(t *testing.T) {
@@ -52,146 +54,125 @@ func TestSlidingLog_NoPollutionOnDeny(t *testing.T) {
 	e := New(s)
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := slPolicy(1, "1m")
 
-	// Allow first.
 	e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	// Deny second (should NOT add timestamp).
 	e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
 
-	// Count entries - should be exactly 1.
-	count, _ := s.CountAfter(context.Background(), "k:swl", now.Add(-time.Minute))
-	if count != 1 {
-		t.Fatalf("denied request should not pollute log: count=%d", count)
-	}
+	count, err := s.CountAfter(context.Background(), "k:swl", now.Add(-time.Minute))
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), count, "denied request should not pollute log")
 }
 
 func TestSlidingLog_WindowExpiry(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := slPolicy(1, "1m")
+
 	e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
 
-	// Move past the window.
 	now = now.Add(61 * time.Second)
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed {
-		t.Fatalf("after window expiry should allow: %+v", d)
-	}
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "after window expiry should allow")
 }
 
 func TestSlidingLog_CostPerRequest(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := model.Policy{
 		Algorithm: model.AlgorithmConfig{Limit: 5, Window: "1m", CostPerRequest: 3},
 		Action:    model.ActionDeny,
 	}
 
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed || d.Remaining != 2 {
-		t.Fatalf("first with cost=3 should allow remaining=2: %+v", d)
-	}
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed)
+	assert.Equal(t, int64(2), d.Remaining, "first with cost=3 should have remaining=2")
 
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.Allowed {
-		t.Fatalf("second with cost=3 should deny (6 > 5): %+v", d)
-	}
+	d, err = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "second with cost=3 should deny (6 > 5)")
 }
 
 func TestSlidingLog_Quantity(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := slPolicy(5, "1m")
 
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{Quantity: 4}, "k")
-	if !d.Allowed || d.Remaining != 1 {
-		t.Fatalf("quantity=4 should allow remaining=1: %+v", d)
-	}
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{Quantity: 4}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed)
+	assert.Equal(t, int64(1), d.Remaining, "quantity=4 should leave remaining=1")
 
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{Quantity: 4}, "k")
-	if d.Allowed {
-		t.Fatalf("quantity=4 should deny (8 > 5): %+v", d)
-	}
+	d, err = e.Evaluate(context.Background(), p, model.RequestContext{Quantity: 4}, "k")
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "quantity=4 should deny (8 > 5)")
 }
 
 func TestSlidingLog_RetryAfter(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := slPolicy(1, "1m")
-	e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
 
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.RetryAfter <= 0 {
-		t.Fatalf("RetryAfter should be positive: %v", d.RetryAfter)
-	}
+	e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.Positive(t, d.RetryAfter, "RetryAfter should be positive on deny")
 }
 
 func TestSlidingLog_DefaultLimit(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := slPolicy(0, "1m") // limit=0 defaults to 1
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed {
-		t.Fatalf("first should allow with default limit")
-	}
-	d, _ = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if d.Allowed {
-		t.Fatalf("second should deny with default limit")
-	}
+
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "first should allow with default limit")
+
+	d, err = e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.False(t, d.Allowed, "second should deny with default limit")
 }
 
 func TestSlidingLog_ShadowMode(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := model.Policy{
 		Algorithm: model.AlgorithmConfig{Limit: 1, Window: "1m"},
 		Action:    model.ActionShadowOnly,
 	}
+
 	e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	d, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
-	if !d.Allowed || !d.ShadowMode {
-		t.Fatalf("shadow mode should still allow: %+v", d)
-	}
+	d, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.NoError(t, err)
+	assert.True(t, d.Allowed, "shadow mode should still allow")
+	assert.True(t, d.ShadowMode)
 }
 
 func TestSlidingLog_AddTimestampError(t *testing.T) {
 	e := New(swlAddErrStore{})
 	p := slPolicy(10, "1m")
-	if _, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k"); err == nil {
-		t.Fatalf("expected add timestamp error")
-	}
+	_, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "k")
+	require.Error(t, err)
 }
 
 func TestSlidingLog_KeyIsolation(t *testing.T) {
-	s := memory.New()
-	e := New(s)
+	e := New(memory.New())
 	now := time.Unix(1000, 0)
 	e.Now = func() time.Time { return now }
-
 	p := slPolicy(1, "1m")
-	d1, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "key1")
-	d2, _ := e.Evaluate(context.Background(), p, model.RequestContext{}, "key2")
-	if !d1.Allowed || !d2.Allowed {
-		t.Fatalf("different keys should be independent")
-	}
+
+	d1, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "key1")
+	require.NoError(t, err)
+	d2, err := e.Evaluate(context.Background(), p, model.RequestContext{}, "key2")
+	require.NoError(t, err)
+	assert.True(t, d1.Allowed, "key1 should be independent")
+	assert.True(t, d2.Allowed, "key2 should be independent")
 }

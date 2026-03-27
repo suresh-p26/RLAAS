@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -31,16 +33,13 @@ func TestGRPCRecoveryUnary_PanicAndSuccess(t *testing.T) {
 	_, err := interceptor(context.Background(), "req", info, func(context.Context, interface{}) (interface{}, error) {
 		panic("boom")
 	})
-	if status.Code(err) != codes.Internal {
-		t.Fatalf("expected internal code on panic, got %v", err)
-	}
+	assert.Equal(t, codes.Internal, status.Code(err), "expected internal code on panic")
 
 	resp, err := interceptor(context.Background(), "req", info, func(context.Context, interface{}) (interface{}, error) {
 		return "ok", nil
 	})
-	if err != nil || resp != "ok" {
-		t.Fatalf("expected success path, resp=%v err=%v", resp, err)
-	}
+	require.NoError(t, err, "expected success path")
+	assert.Equal(t, "ok", resp)
 }
 
 func TestGRPCRecoveryStream_PanicAndSuccess(t *testing.T) {
@@ -51,16 +50,13 @@ func TestGRPCRecoveryStream_PanicAndSuccess(t *testing.T) {
 	err := interceptor(nil, ss, info, func(interface{}, grpc.ServerStream) error {
 		panic("boom")
 	})
-	if status.Code(err) != codes.Internal {
-		t.Fatalf("expected internal code on panic, got %v", err)
-	}
+	assert.Equal(t, codes.Internal, status.Code(err), "expected internal code on panic")
 
 	err = interceptor(nil, ss, info, func(interface{}, grpc.ServerStream) error {
 		return errors.New("stream error")
 	})
-	if err == nil || status.Code(err) == codes.Internal {
-		t.Fatalf("expected passthrough non-panic error, got %v", err)
-	}
+	require.Error(t, err)
+	assert.NotEqual(t, codes.Internal, status.Code(err), "expected passthrough non-panic error")
 }
 
 func TestPanicRecovery_HandlesPanic(t *testing.T) {
@@ -69,7 +65,5 @@ func TestPanicRecovery_HandlesPanic(t *testing.T) {
 	}))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/panic", nil))
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("expected 500 from panic recovery, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusInternalServerError, rec.Code, "expected 500 from panic recovery")
 }

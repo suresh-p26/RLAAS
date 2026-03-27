@@ -4,17 +4,17 @@ import (
 	"context"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewBrokerIsEmpty(t *testing.T) {
 	b := NewBroker()
-	if b == nil {
-		t.Fatal("expected non-nil broker")
-	}
+	require.NotNil(t, b, "expected non-nil broker")
 	// Publishing to an empty topic should not panic.
-	if err := b.Publish(context.Background(), "noop", map[string]string{"k": "v"}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	err := b.Publish(context.Background(), "noop", map[string]string{"k": "v"})
+	require.NoError(t, err, "unexpected error")
 }
 
 func TestPublishDelivers(t *testing.T) {
@@ -25,9 +25,9 @@ func TestPublishDelivers(t *testing.T) {
 	})
 	evt := map[string]string{"policy_id": "p1", "action": "create"}
 	_ = b.Publish(context.Background(), "policy.changed", evt)
-	if received == nil || received["policy_id"] != "p1" || received["action"] != "create" {
-		t.Fatalf("expected event delivery, got %v", received)
-	}
+	require.NotNil(t, received, "expected event delivery")
+	assert.Equal(t, "p1", received["policy_id"])
+	assert.Equal(t, "create", received["action"])
 }
 
 func TestPublishMultipleSubscribers(t *testing.T) {
@@ -44,9 +44,7 @@ func TestPublishMultipleSubscribers(t *testing.T) {
 	_ = b.Publish(context.Background(), "topic", map[string]string{})
 	mu.Lock()
 	defer mu.Unlock()
-	if count != 5 {
-		t.Fatalf("expected 5 callbacks, got %d", count)
-	}
+	assert.Equal(t, 5, count, "expected 5 callbacks")
 }
 
 func TestPublishDifferentTopicsIsolated(t *testing.T) {
@@ -54,9 +52,7 @@ func TestPublishDifferentTopicsIsolated(t *testing.T) {
 	called := false
 	b.Subscribe("alpha", func(_ map[string]string) { called = true })
 	_ = b.Publish(context.Background(), "beta", map[string]string{})
-	if called {
-		t.Fatal("alpha subscriber should not receive beta events")
-	}
+	assert.False(t, called, "alpha subscriber should not receive beta events")
 }
 
 func TestConcurrentSubscribePublish(t *testing.T) {

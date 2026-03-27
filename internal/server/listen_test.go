@@ -1,10 +1,13 @@
 package server
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestListenAndServeInvalidAddress(t *testing.T) {
 	s := &HTTPServer{Addr: ":-1", Mux: nil}
-	if err := s.ListenAndServe(); err == nil {
-		t.Fatalf("expected listen error for invalid address")
-	}
+	err := s.ListenAndServe()
+	require.Error(t, err, "expected listen error for invalid address")
 }

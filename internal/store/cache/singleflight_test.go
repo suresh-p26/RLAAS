@@ -7,69 +7,68 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/rlaas-io/rlaas/pkg/model"
 )
 
-func TestGetOrLoad_CacheHit(t *testing.T) {
-	c := NewMemoryPolicyCache(10 * time.Second)
-	defer c.Stop()
-
-	c.Set("ns1", []model.Policy{{PolicyID: "cached"}})
-
-	callCount := 0
-	got, err := c.GetOrLoad("ns1", func(ns string) ([]model.Policy, error) {
-		callCount++
-		return []model.Policy{{PolicyID: "loaded"}}, nil
-	})
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if callCount != 0 {
-		t.Fatalf("loader should not be called on cache hit")
-	}
-	if got[0].PolicyID != "cached" {
-		t.Fatalf("expected cached value, got %s", got[0].PolicyID)
-	}
-}
-
-func TestGetOrLoad_CacheMiss(t *testing.T) {
-	c := NewMemoryPolicyCache(10 * time.Second)
-	defer c.Stop()
-
-	got, err := c.GetOrLoad("ns1", func(ns string) ([]model.Policy, error) {
-		return []model.Policy{{PolicyID: "loaded"}}, nil
-	})
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	if got[0].PolicyID != "loaded" {
-		t.Fatalf("expected loaded value, got %s", got[0].PolicyID)
-	}
-
-	// Should be cached now.
-	cached, ok := c.Get("ns1")
-	if !ok {
-		t.Fatal("expected cache hit after GetOrLoad")
-	}
-	if cached[0].PolicyID != "loaded" {
-		t.Fatal("cached value mismatch")
-	}
-}
-
-func TestGetOrLoad_LoaderError(t *testing.T) {
-	c := NewMemoryPolicyCache(10 * time.Second)
-	defer c.Stop()
-
-	_, err := c.GetOrLoad("ns1", func(ns string) ([]model.Policy, error) {
-		return nil, fmt.Errorf("load failed")
-	})
-	if err == nil {
-		t.Fatal("expected error from loader")
+func TestGetOrLoad(t *testing.T) {
+	tests := []struct {
+		name         string
+		preload      []model.Policy
+		loader       func(string) ([]model.Policy, error)
+		wantErr      bool
+		wantPolicyID string
+		wantCached   bool
+	}{
+		{
+			name:    "cache hit skips loader",
+			preload: []model.Policy{{PolicyID: "cached"}},
+			loader: func(_ string) ([]model.Policy, error) {
+				return []model.Policy{{PolicyID: "loaded"}}, nil
+			},
+			wantPolicyID: "cached",
+			wantCached:   true,
+		},
+		{
+			name: "cache miss calls loader and caches result",
+			loader: func(_ string) ([]model.Policy, error) {
+				return []model.Policy{{PolicyID: "loaded"}}, nil
+			},
+			wantPolicyID: "loaded",
+			wantCached:   true,
+		},
+		{
+			name: "loader error returns error and does not cache",
+			loader: func(_ string) ([]model.Policy, error) {
+				return nil, fmt.Errorf("load failed")
+			},
+			wantErr:    true,
+			wantCached: false,
+		},
 	}
 
-	// Cache should NOT be populated on error.
-	if _, ok := c.Get("ns1"); ok {
-		t.Fatal("cache should be empty after loader error")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewMemoryPolicyCache(10 * time.Second)
+			defer c.Stop()
+
+			if tt.preload != nil {
+				c.Set("ns1", tt.preload)
+			}
+
+			got, err := c.GetOrLoad("ns1", tt.loader)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantPolicyID, got[0].PolicyID)
+			}
+
+			_, cached := c.Get("ns1")
+			assert.Equal(t, tt.wantCached, cached)
+		})
 	}
 }
 
@@ -105,18 +104,12 @@ func TestGetOrLoad_Singleflight(t *testing.T) {
 	wg.Wait()
 
 	// Loader should have been called exactly once (singleflight).
-	if count := callCount.Load(); count != 1 {
-		t.Fatalf("loader called %d times, expected 1 (singleflight dedup)", count)
-	}
+	assert.Equal(t, int32(1), callCount.Load(), "loader called more than once, singleflight not working")
 
 	// All goroutines should get the same result.
 	for i := 0; i < 10; i++ {
-		if errs[i] != nil {
-			t.Fatalf("goroutine %d error: %v", i, errs[i])
-		}
-		if results[i][0].PolicyID != "result" {
-			t.Fatalf("goroutine %d got wrong result: %s", i, results[i][0].PolicyID)
-		}
+		assert.NoError(t, errs[i], "goroutine %d error", i)
+		assert.Equal(t, "result", results[i][0].PolicyID, "goroutine %d got wrong result", i)
 	}
 }
 
@@ -133,7 +126,5 @@ func TestMemoryPolicyCache_MaxItems(t *testing.T) {
 	c.mu.RLock()
 	count := len(c.items)
 	c.mu.RUnlock()
-	if count > 3 {
-		t.Fatalf("expected max 3 items, got %d", count)
-	}
+	assert.LessOrEqual(t, count, 3, "expected max 3 items")
 }
