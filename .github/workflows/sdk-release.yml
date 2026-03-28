@@ -39,6 +39,7 @@ permissions:
 
 jobs:
   release:
+    if: github.actor == 'suresh-p26'
     runs-on: ubuntu-latest
 
     env:
