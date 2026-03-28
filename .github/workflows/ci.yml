@@ -21,23 +21,11 @@ env:
   MIN_COVERAGE: 90
 
 jobs:
-  # ── Owner-only guard for manual triggers ─────────────────────
-  check-owner:
-    name: Check Owner
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.actor != 'suresh-p26'
-    steps:
-      - name: Deny non-owner
-        run: |
-          echo "Only repository owner can trigger manual workflows"
-          exit 1
-
   # ── Lint (golangci-lint) ────────────────────────────────────
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    needs: [check-owner]
-    if: always() && needs.check-owner.result != 'failure'
+    if: github.event_name != 'workflow_dispatch' || github.actor == 'suresh-p26'
     steps:
       - uses: actions/checkout@v4
 
@@ -56,6 +44,7 @@ jobs:
   vet:
     name: Vet & Format
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || github.actor == 'suresh-p26'
     steps:
       - uses: actions/checkout@v4
 
@@ -89,6 +78,7 @@ jobs:
   test:
     name: Test (coverage ≥ 90%)
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || github.actor == 'suresh-p26'
     steps:
       - uses: actions/checkout@v4
 
@@ -127,6 +117,7 @@ jobs:
   vuln:
     name: Vulnerability Scan
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || github.actor == 'suresh-p26'
     steps:
       - uses: actions/checkout@v4
 
@@ -146,6 +137,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: [lint, vet, test, vuln]
+    if: github.event_name != 'workflow_dispatch' || github.actor == 'suresh-p26'
     strategy:
       matrix:
         goarch: [amd64, arm64]
@@ -193,6 +185,7 @@ jobs:
     name: Docker Build
     runs-on: ubuntu-latest
     needs: [build]
+    if: github.event_name != 'workflow_dispatch' || github.actor == 'suresh-p26'
     steps:
       - uses: actions/checkout@v4
 
